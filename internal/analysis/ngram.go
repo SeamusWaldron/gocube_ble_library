@@ -3,7 +3,7 @@ package analysis
 import (
 	"sort"
 
-	"github.com/SeamusWaldron/gocube"
+	"github.com/SeamusWaldron/gocube_ble_library"
 )
 
 // NGram represents a repeated move sequence.

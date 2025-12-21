@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/SeamusWaldron/gocube"
+	"github.com/SeamusWaldron/gocube_ble_library"
 )
 
 // LogEventType identifies the type of logged event

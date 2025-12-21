@@ -11,7 +11,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/cobra"
 
-	"github.com/SeamusWaldron/gocube"
+	"github.com/SeamusWaldron/gocube_ble_library"
 )
 
 var replayCmd = &cobra.Command{

@@ -2,7 +2,7 @@
 package analysis
 
 import (
-	"github.com/SeamusWaldron/gocube"
+	"github.com/SeamusWaldron/gocube_ble_library"
 )
 
 // Cancellation represents an immediate move cancellation (e.g., R followed by R').

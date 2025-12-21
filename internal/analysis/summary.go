@@ -1,7 +1,7 @@
 package analysis
 
 import (
-	"github.com/SeamusWaldron/gocube"
+	"github.com/SeamusWaldron/gocube_ble_library"
 )
 
 // SolveSummary contains comprehensive statistics for a single solve.

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/SeamusWaldron/gocube"
+	"github.com/SeamusWaldron/gocube_ble_library"
 )
 
 // ScanForGoCube scans for GoCube devices using the same logic everywhere.

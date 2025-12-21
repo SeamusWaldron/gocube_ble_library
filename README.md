@@ -2,8 +2,8 @@
 
 A Go library for interacting with GoCube smart Rubik's cubes via Bluetooth Low Energy (BLE).
 
-[![Go Reference](https://pkg.go.dev/badge/github.com/SeamusWaldron/gocube.svg)](https://pkg.go.dev/github.com/SeamusWaldron/gocube)
-[![CI](https://github.com/SeamusWaldron/gocube/actions/workflows/ci.yml/badge.svg)](https://github.com/SeamusWaldron/gocube/actions/workflows/ci.yml)
+[![Go Reference](https://pkg.go.dev/badge/github.com/SeamusWaldron/gocube_ble_library.svg)](https://pkg.go.dev/github.com/SeamusWaldron/gocube_ble_library)
+[![CI](https://github.com/SeamusWaldron/gocube_ble_library/actions/workflows/ci.yml/badge.svg)](https://github.com/SeamusWaldron/gocube_ble_library/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 ## Features
@@ -20,13 +20,13 @@ A Go library for interacting with GoCube smart Rubik's cubes via Bluetooth Low E
 ### Library
 
 ```bash
-go get github.com/SeamusWaldron/gocube
+go get github.com/SeamusWaldron/gocube_ble_library
 ```
 
 ### CLI Application
 
 ```bash
-go install github.com/SeamusWaldron/gocube/cmd/gocube@latest
+go install github.com/SeamusWaldron/gocube_ble_library/cmd/gocube@latest
 ```
 
 ## Requirements
@@ -47,7 +47,7 @@ import (
     "fmt"
     "time"
 
-    "github.com/SeamusWaldron/gocube"
+    "github.com/SeamusWaldron/gocube_ble_library"
 )
 
 func main() {

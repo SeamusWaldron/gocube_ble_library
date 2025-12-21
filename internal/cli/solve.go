@@ -6,8 +6,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/SeamusWaldron/gocube/internal/recorder"
-	"github.com/SeamusWaldron/gocube/internal/storage"
+	"github.com/SeamusWaldron/gocube_ble_library/internal/recorder"
+	"github.com/SeamusWaldron/gocube_ble_library/internal/storage"
 )
 
 var (

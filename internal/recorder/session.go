@@ -5,8 +5,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/SeamusWaldron/gocube"
-	"github.com/SeamusWaldron/gocube/internal/storage"
+	"github.com/SeamusWaldron/gocube_ble_library"
+	"github.com/SeamusWaldron/gocube_ble_library/internal/storage"
 )
 
 // SessionState represents the current state of a recording session.

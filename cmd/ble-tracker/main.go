@@ -10,7 +10,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/SeamusWaldron/gocube"
+	"github.com/SeamusWaldron/gocube_ble_library"
 )
 
 func main() {

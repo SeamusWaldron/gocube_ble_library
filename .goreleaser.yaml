@@ -1,6 +1,6 @@
 version: 2
 
-project_name: gocube
+project_name: gocube_ble_library
 
 before:
   hooks:
@@ -49,7 +49,7 @@ changelog:
 release:
   github:
     owner: SeamusWaldron
-    name: gocube
+    name: gocube_ble_library
   draft: false
   prerelease: auto
   name_template: 'v{{.Version}}'

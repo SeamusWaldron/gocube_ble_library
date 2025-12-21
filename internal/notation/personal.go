@@ -1,7 +1,7 @@
 package notation
 
 import (
-	"github.com/SeamusWaldron/gocube"
+	"github.com/SeamusWaldron/gocube_ble_library"
 )
 
 // ToPersonalNotation converts a Move to your personal notation.

@@ -1,7 +1,7 @@
 package analysis
 
 import (
-	"github.com/SeamusWaldron/gocube"
+	"github.com/SeamusWaldron/gocube_ble_library"
 )
 
 // Tool represents a known algorithm/tool for the final phase.

@@ -32,5 +32,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Solve recording with SQLite storage
 - Report generation with analysis metrics
 
-[Unreleased]: https://github.com/SeamusWaldron/gocube/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/SeamusWaldron/gocube/releases/tag/v0.1.0
+[Unreleased]: https://github.com/SeamusWaldron/gocube_ble_library/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/SeamusWaldron/gocube_ble_library/releases/tag/v0.1.0

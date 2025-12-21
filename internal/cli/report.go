@@ -10,9 +10,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/SeamusWaldron/gocube"
-	"github.com/SeamusWaldron/gocube/internal/analysis"
-	"github.com/SeamusWaldron/gocube/internal/storage"
+	"github.com/SeamusWaldron/gocube_ble_library"
+	"github.com/SeamusWaldron/gocube_ble_library/internal/analysis"
+	"github.com/SeamusWaldron/gocube_ble_library/internal/storage"
 )
 
 var (

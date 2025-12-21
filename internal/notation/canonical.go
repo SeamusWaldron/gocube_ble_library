@@ -4,7 +4,7 @@ package notation
 import (
 	"strings"
 
-	"github.com/SeamusWaldron/gocube"
+	"github.com/SeamusWaldron/gocube_ble_library"
 )
 
 // ParseNotation parses a standard cube notation string into a Move.

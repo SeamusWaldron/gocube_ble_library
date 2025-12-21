@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GoCube Solve Visualizer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <style>
+        body { margin: 0; background-color: #0f172a; color: white; overflow-x: hidden; font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
+        #canvas-container { width: 100%; height: 50vh; cursor: grab; position: relative; }
+        #canvas-container:active { cursor: grabbing; }
+        .phase-bar { height: 12px; transition: all 0.2s; position: relative; cursor: pointer; }
+        .phase-bar:hover { height: 16px; filter: brightness(1.2); }
+        .phase-bar.active { height: 20px; border: 2px solid white; }
+        .move-pill { font-family: monospace; }
+        .reversal { color: #f87171; text-decoration: underline; }
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #1e293b; }
+        ::-webkit-scrollbar-thumb { background: #475569; border-radius: 4px; }
+    </style>
+</head>
+<body class="bg-slate-900 select-none">
+
+    <!-- Header & Stats -->
+    <header class="p-4 bg-slate-800 border-b border-slate-700 flex justify-between items-center shadow-lg">
+        <div>
+            <h1 class="text-xl font-bold text-blue-400">GoCube <span class="text-white">Solve Recorder</span></h1>
+            <p id="solve-id" class="text-xs text-slate-400 font-mono mt-1 opacity-50"></p>
+        </div>
+        <div class="flex gap-6">
+            <div class="text-center">
+                <div id="stat-tps" class="text-xl font-bold">0.00</div>
+                <div class="text-[10px] uppercase text-slate-400 tracking-wider">Current TPS</div>
+            </div>
+            <div class="text-center">
+                <div id="stat-moves" class="text-xl font-bold">0</div>
+                <div class="text-[10px] uppercase text-slate-400 tracking-wider">Move Count</div>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-6xl mx-auto p-4 grid grid-cols-1 lg:grid-cols-3 gap-4">
+        
+        <!-- Left Column: 3D Visualization -->
+        <div class="lg:col-span-2 space-y-4">
+            <div id="canvas-container" class="bg-slate-950 rounded-xl border border-slate-700 overflow-hidden">
+                <div id="phase-overlay" class="absolute top-4 left-4 bg-slate-900/80 px-3 py-1 rounded-full border border-blue-500/50 text-sm font-semibold pointer-events-none z-10">
+                    Waiting...
+                </div>
+                <button id="btn-reset-view" class="absolute bottom-4 right-4 bg-slate-800/80 hover:bg-slate-700 px-3 py-1 rounded text-[10px] uppercase font-bold tracking-widest border border-slate-600 z-10">
+                    Reset View
+                </button>
+            </div>
+
+            <!-- Timeline -->
+            <div class="bg-slate-800 p-4 rounded-xl border border-slate-700 shadow-xl">
+                <div class="flex justify-between text-xs mb-2 text-slate-400 font-mono">
+                    <span id="time-elapsed">00:00.0</span>
+                    <span id="time-total">00:00.0</span>
+                </div>
+                
+                <div id="timeline-container" class="w-full flex items-center mb-4 rounded-full overflow-hidden bg-slate-700 h-3">
+                    <!-- Phases injected here -->
+                </div>
+
+                <!-- Controls -->
+                <div class="flex flex-wrap items-center justify-between gap-4">
+                    <div class="flex items-center gap-3">
+                        <button id="btn-play" class="bg-blue-600 hover:bg-blue-500 w-10 h-10 rounded-full flex items-center justify-center transition shadow-lg">
+                            <svg id="icon-play" class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                        </button>
+                        <button id="btn-skip-to-solve" class="text-xs bg-slate-700 hover:bg-slate-600 px-3 py-2 rounded font-semibold uppercase tracking-tight">
+                            Skip to Solve
+                        </button>
+                    </div>
+
+                    <div class="flex items-center gap-2">
+                        <span class="text-[10px] text-slate-500 uppercase font-bold mr-1">Speed</span>
+                        <div id="speed-controls" class="flex bg-slate-900 rounded p-1">
+                            <button data-speed="0.5" class="px-2 py-1 text-xs rounded hover:bg-slate-700">0.5x</button>
+                            <button data-speed="1" class="px-2 py-1 text-xs rounded bg-blue-600">1x</button>
+                            <button data-speed="2" class="px-2 py-1 text-xs rounded hover:bg-slate-700">2x</button>
+                            <button data-speed="4" class="px-2 py-1 text-xs rounded hover:bg-slate-700">4x</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Column: Move Feed -->
+        <div class="space-y-4">
+            <div class="bg-slate-800 rounded-xl border border-slate-700 flex flex-col h-full max-h-[650px] overflow-hidden shadow-xl">
+                <div class="p-3 border-b border-slate-700 bg-slate-800/50 flex justify-between items-center">
+                    <h3 class="text-xs font-bold uppercase tracking-widest text-slate-400">Move History</h3>
+                    <span id="notation-current" class="text-2xl font-black text-blue-400">-</span>
+                </div>
+                <div id="move-feed" class="p-4 flex flex-wrap gap-2 overflow-y-auto content-start flex-1">
+                    <!-- Moves injected here -->
+                </div>
+                <div class="p-3 bg-slate-900/50 border-t border-slate-700 text-[10px] text-slate-500 italic">
+                    Note: Red underlined moves indicate immediate reversals.
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        /** DATA & PARSING **/
+        const solveData = {
+            "solve_id": "7af5ef7b-d2d7-4464-8f80-2569af742c56",
+            "total_duration_ms": 117050,
+            "solve_duration_ms": 89960,
+            "phases": [
+                { "phase_key": "scramble", "display_name": "Scramble", "duration_ms": 17820, "tps": 2.41, "move_count": 43, "moves": "B B L B' B' F F R R B' F' F' R R D D F F U U F B' B' B' R R R L' L' L' L' B B B U U F B' B' F D' D D'" },
+                { "phase_key": "inspection", "display_name": "Inspection", "duration_ms": 9270, "tps": 0, "move_count": 0, "moves": "" },
+                { "phase_key": "white_cross", "display_name": "White Cross", "duration_ms": 24960, "tps": 1.72, "move_count": 43, "moves": "F' D B B D' D B' F L' B F' D D R' D D R D D F D' F' D D D B D' B' D' D F' D F D' B' D D B D D R D' R'" },
+                { "phase_key": "top_corners", "display_name": "Top Corners", "duration_ms": 21990, "tps": 1.50, "move_count": 33, "moves": "D B' D B D R D' R' D D D F D' F' D' R' D R D' D' L' D L D B D' B' L D' L' D' F' D" },
+                { "phase_key": "middle_layer", "display_name": "Middle Layer", "duration_ms": 4740, "tps": 2.53, "move_count": 12, "moves": "F F' B R' F B' D D F' B R' F" },
+                { "phase_key": "bottom_cross", "display_name": "Bottom Cross", "duration_ms": 32640, "tps": 1.32, "move_count": 43, "moves": "B' D' R D D D' D R' D' R D' R' D D D L D D L' D' L D' L' L' R D R' D' L D R D' R' B' F D F' D' B D F D' F'" },
+                { "phase_key": "position_corners", "display_name": "Pos Corners", "duration_ms": 5630, "tps": 2.84, "move_count": 16, "moves": "F' D D F D F' D F B D D B' D' B D' B'" }
+            ]
+        };
+
+        function parseMoves(moveString) {
+            if (!moveString || moveString.trim() === '') return [];
+            return moveString.trim().split(/\s+/).map(notation => {
+                const face = notation[0];
+                let turn = 1;
+                if (notation.includes("'")) turn = -1;
+                if (notation.includes("2")) turn = 2;
+                return { notation, face, turn };
+            });
+        }
+
+        function calculateTimestamps(moves, durationMs, startOffset) {
+            if (moves.length === 0) return [];
+            const interval = durationMs / moves.length;
+            return moves.map((move, i) => ({
+                ...move,
+                ts_ms: Math.round(startOffset + (i * interval))
+            }));
+        }
+
+        let fullTimeline = [];
+        let globalOffset = 0;
+        solveData.phases.forEach(p => {
+            const phaseMoves = calculateTimestamps(parseMoves(p.moves), p.duration_ms, globalOffset);
+            p.startTime = globalOffset;
+            p.endTime = globalOffset + p.duration_ms;
+            p.processedMoves = phaseMoves;
+            fullTimeline.push(...phaseMoves);
+            globalOffset += p.duration_ms;
+        });
+
+        /** 3D ENGINE **/
+        let scene, camera, renderer, cubeGroup, mainWrapper;
+        const COLORS = {
+            U: 0xFFFFFF, D: 0xFFFF00, F: 0x00FF00, B: 0x0000FF, R: 0xFF0000, L: 0xFFA500
+        };
+
+        function init3D() {
+            const container = document.getElementById('canvas-container');
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 1000);
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.setSize(container.clientWidth, container.clientHeight);
+            container.appendChild(renderer.domElement);
+
+            mainWrapper = new THREE.Group();
+            scene.add(mainWrapper);
+
+            cubeGroup = new THREE.Group();
+            mainWrapper.add(cubeGroup);
+
+            for (let x = -1; x <= 1; x++) {
+                for (let y = -1; y <= 1; y++) {
+                    for (let z = -1; z <= 1; z++) {
+                        const geometry = new THREE.BoxGeometry(0.95, 0.95, 0.95);
+                        const materials = [
+                            new THREE.MeshBasicMaterial({ color: x === 1 ? COLORS.R : 0x222222 }),
+                            new THREE.MeshBasicMaterial({ color: x === -1 ? COLORS.L : 0x222222 }),
+                            new THREE.MeshBasicMaterial({ color: y === 1 ? COLORS.U : 0x222222 }),
+                            new THREE.MeshBasicMaterial({ color: y === -1 ? COLORS.D : 0x222222 }),
+                            new THREE.MeshBasicMaterial({ color: z === 1 ? COLORS.F : 0x222222 }),
+                            new THREE.MeshBasicMaterial({ color: z === -1 ? COLORS.B : 0x222222 })
+                        ];
+                        const cubie = new THREE.Mesh(geometry, materials);
+                        cubie.position.set(x, y, z);
+                        cubie.userData = { originalX: x, originalY: y, originalZ: z };
+                        cubeGroup.add(cubie);
+                    }
+                }
+            }
+
+            camera.position.set(4, 4, 6);
+            camera.lookAt(0, 0, 0);
+
+            let isDragging = false;
+            let previousMousePosition = { x: 0, y: 0 };
+
+            container.addEventListener('mousedown', (e) => {
+                isDragging = true;
+                previousMousePosition = { x: e.offsetX, y: e.offsetY };
+            });
+
+            window.addEventListener('mousemove', (e) => {
+                if (!isDragging) return;
+                const deltaMove = { x: e.movementX || 0, y: e.movementY || 0 };
+                const factor = 0.005;
+                mainWrapper.rotation.y += deltaMove.x * factor;
+                mainWrapper.rotation.x += deltaMove.y * factor;
+            });
+
+            window.addEventListener('mouseup', () => { isDragging = false; });
+
+            document.getElementById('btn-reset-view').onclick = () => {
+                gsap.to(mainWrapper.rotation, { x: 0, y: 0, z: 0, duration: 0.5, ease: "power2.out" });
+            };
+
+            window.addEventListener('resize', () => {
+                camera.aspect = container.clientWidth / container.clientHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(container.clientWidth, container.clientHeight);
+            });
+
+            animate();
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            renderer.render(scene, camera);
+        }
+
+        /** IMPROVED CUBE LOGIC: Local Transformation only **/
+        function executeMove(face, turn, speed = 1, instant = false) {
+            if (instant) {
+                applyMoveToData(face, turn);
+                return;
+            }
+            
+            return new Promise(resolve => {
+                const axis = (face === 'R' || face === 'L') ? 'x' : (face === 'U' || face === 'D' ? 'y' : 'z');
+                const coord = (face === 'R' || face === 'U' || face === 'F') ? 1 : -1;
+                
+                const cubiesToRotate = cubeGroup.children.filter(c => 
+                    c instanceof THREE.Mesh && Math.round(c.position[axis]) === coord
+                );
+
+                const angle = - (Math.PI / 2) * turn * (face === 'L' || face === 'D' || face === 'B' ? -1 : 1);
+                const duration = Math.min(0.2 / speed, 0.1);
+
+                // Use GSAP to animate a proxy object's value, applying it to cubies manually
+                const proxy = { rotation: 0 };
+                const rotationAxis = new THREE.Vector3(
+                    axis === 'x' ? 1 : 0,
+                    axis === 'y' ? 1 : 0,
+                    axis === 'z' ? 1 : 0
+                );
+
+                gsap.to(proxy, {
+                    rotation: angle,
+                    duration: duration,
+                    ease: "power2.inOut",
+                    onUpdate: () => {
+                        // This logic rotates cubies around the local origin of cubeGroup
+                        // We reset position for each frame to avoid accumulation of errors during animation
+                    },
+                    onComplete: () => {
+                        applyMoveToData(face, turn);
+                        resolve();
+                    }
+                });
+
+                // VISUAL ANIMATION: Using a cleaner approach: Rotate cubies by a delta each frame
+                let lastRotation = 0;
+                const animProxy = { r: 0 };
+                gsap.to(animProxy, {
+                    r: angle,
+                    duration: duration,
+                    ease: "power2.inOut",
+                    onUpdate: () => {
+                        const delta = animProxy.r - lastRotation;
+                        lastRotation = animProxy.r;
+                        
+                        const quaternion = new THREE.Quaternion();
+                        quaternion.setFromAxisAngle(rotationAxis, delta);
+                        
+                        cubiesToRotate.forEach(c => {
+                            c.position.applyQuaternion(quaternion);
+                            c.quaternion.premultiply(quaternion);
+                        });
+                    },
+                    onComplete: () => {
+                        normalizeCubies();
+                        resolve();
+                    }
+                });
+            });
+        }
+
+        function applyMoveToData(face, turn) {
+            const axis = (face === 'R' || face === 'L') ? 'x' : (face === 'U' || face === 'D' ? 'y' : 'z');
+            const coord = (face === 'R' || face === 'U' || face === 'F') ? 1 : -1;
+            const angle = - (Math.PI / 2) * turn * (face === 'L' || face === 'D' || face === 'B' ? -1 : 1);
+            
+            const rotationAxis = new THREE.Vector3(
+                axis === 'x' ? 1 : 0,
+                axis === 'y' ? 1 : 0,
+                axis === 'z' ? 1 : 0
+            );
+            const quaternion = new THREE.Quaternion().setFromAxisAngle(rotationAxis, angle);
+
+            cubeGroup.children.forEach(c => {
+                if (c instanceof THREE.Mesh && Math.round(c.position[axis]) === coord) {
+                    c.position.applyQuaternion(quaternion);
+                    c.quaternion.premultiply(quaternion);
+                }
+            });
+            normalizeCubies();
+        }
+
+        function normalizeCubies() {
+            // Snap to exact coordinates to prevent "explosion" drift
+            cubeGroup.children.forEach(c => {
+                if (c instanceof THREE.Mesh) {
+                    c.position.x = Math.round(c.position.x);
+                    c.position.y = Math.round(c.position.y);
+                    c.position.z = Math.round(c.position.z);
+                    
+                    // Snap rotations to 90-degree increments
+                    c.rotation.x = Math.round(c.rotation.x / (Math.PI/2)) * (Math.PI/2);
+                    c.rotation.y = Math.round(c.rotation.y / (Math.PI/2)) * (Math.PI/2);
+                    c.rotation.z = Math.round(c.rotation.z / (Math.PI/2)) * (Math.PI/2);
+                }
+            });
+        }
+
+        function resetCube() {
+            cubeGroup.children.forEach(c => {
+                if (c instanceof THREE.Mesh) {
+                    c.position.set(c.userData.originalX, c.userData.originalY, c.userData.originalZ);
+                    c.rotation.set(0,0,0);
+                    c.quaternion.set(0,0,0,1);
+                }
+            });
+        }
+
+        /** PLAYBACK STATE **/
+        let isPlaying = false;
+        let currentTime = 0;
+        let playbackSpeed = 1;
+        let lastTimestamp = 0;
+        let lastMoveIdx = -1;
+
+        function updateUI() {
+            const currentPhase = solveData.phases.find(p => currentTime >= p.startTime && currentTime <= p.endTime) || solveData.phases[0];
+            document.getElementById('phase-overlay').innerText = currentPhase.display_name;
+            document.getElementById('time-elapsed').innerText = formatTime(currentTime);
+            document.getElementById('stat-tps').innerText = currentPhase.tps.toFixed(2);
+            
+            document.querySelectorAll('.phase-bar').forEach(bar => {
+                if(bar.dataset.phase === currentPhase.phase_key) bar.classList.add('active');
+                else bar.classList.remove('active');
+            });
+
+            const moveElements = document.querySelectorAll('.move-item');
+            moveElements.forEach((el, idx) => {
+                if (idx === lastMoveIdx) {
+                    el.classList.add('bg-blue-600', 'text-white', 'scale-110');
+                    el.classList.remove('bg-slate-700', 'text-slate-300');
+                    el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                    document.getElementById('notation-current').innerText = el.innerText;
+                } else {
+                    el.classList.remove('bg-blue-600', 'text-white', 'scale-110');
+                    el.classList.add('bg-slate-700', 'text-slate-300');
+                }
+            });
+            document.getElementById('stat-moves').innerText = Math.max(0, lastMoveIdx + 1);
+        }
+
+        function formatTime(ms) {
+            const totalSeconds = ms / 1000;
+            const mins = Math.floor(totalSeconds / 60);
+            const secs = (totalSeconds % 60).toFixed(1);
+            return `${mins.toString().padStart(2, '0')}:${secs.padStart(4, '0')}`;
+        }
+
+        async function playbackLoop(timestamp) {
+            if (!isPlaying) return;
+            const delta = (timestamp - lastTimestamp) * playbackSpeed;
+            lastTimestamp = timestamp;
+            currentTime += delta;
+            
+            if (currentTime >= solveData.total_duration_ms) {
+                currentTime = solveData.total_duration_ms;
+                isPlaying = false;
+                togglePlayIcon();
+            }
+
+            const currentMoveIdx = fullTimeline.findIndex(m => m.ts_ms > currentTime) - 1;
+            const idxToUse = currentMoveIdx === -2 ? fullTimeline.length - 1 : currentMoveIdx;
+
+            if (idxToUse > lastMoveIdx) {
+                for (let i = lastMoveIdx + 1; i <= idxToUse; i++) {
+                    const m = fullTimeline[i];
+                    await executeMove(m.face, m.turn, playbackSpeed);
+                    lastMoveIdx = i;
+                    updateUI();
+                }
+            } else if (idxToUse < lastMoveIdx) {
+                seekTo(currentTime);
+            }
+            
+            updateUI();
+            requestAnimationFrame(playbackLoop);
+        }
+
+        function seekTo(timeMs) {
+            currentTime = timeMs;
+            resetCube();
+            lastMoveIdx = -1;
+            const targetIdx = fullTimeline.findIndex(m => m.ts_ms > currentTime) - 1;
+            const idxToUse = targetIdx === -2 ? fullTimeline.length - 1 : targetIdx;
+            for (let i = 0; i <= idxToUse; i++) {
+                const m = fullTimeline[i];
+                applyMoveToData(m.face, m.turn);
+            }
+            lastMoveIdx = idxToUse;
+            updateUI();
+        }
+
+        function togglePlayIcon() {
+            const icon = document.getElementById('icon-play');
+            icon.innerHTML = isPlaying 
+                ? '<path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>' 
+                : '<path d="M8 5v14l11-7z"/>';
+        }
+
+        window.onload = () => {
+            init3D();
+            document.getElementById('solve-id').innerText = solveData.solve_id;
+            document.getElementById('time-total').innerText = formatTime(solveData.total_duration_ms);
+
+            const timeline = document.getElementById('timeline-container');
+            const colors = {
+                scramble: 'bg-gray-500', inspection: 'bg-yellow-500', white_cross: 'bg-red-500',
+                top_corners: 'bg-orange-500', middle_layer: 'bg-amber-500', bottom_cross: 'bg-emerald-500',
+                position_corners: 'bg-green-500'
+            };
+
+            solveData.phases.forEach(p => {
+                const width = (p.duration_ms / solveData.total_duration_ms) * 100;
+                const bar = document.createElement('div');
+                bar.className = `phase-bar ${colors[p.phase_key] || 'bg-blue-500'}`;
+                bar.style.width = `${width}%`;
+                bar.dataset.phase = p.phase_key;
+                bar.onclick = () => seekTo(p.startTime);
+                timeline.appendChild(bar);
+            });
+
+            const moveFeed = document.getElementById('move-feed');
+            fullTimeline.forEach((m, i) => {
+                const span = document.createElement('span');
+                const isReversal = i > 0 && m.face === fullTimeline[i-1].face && m.turn === -fullTimeline[i-1].turn;
+                span.className = `move-item cursor-pointer text-sm px-2 py-1 rounded bg-slate-700 text-slate-300 font-bold transition ${isReversal ? 'reversal ring-1 ring-red-400' : ''}`;
+                span.innerText = m.notation;
+                span.onclick = () => seekTo(m.ts_ms);
+                moveFeed.appendChild(span);
+            });
+
+            document.getElementById('btn-play').onclick = () => {
+                isPlaying = !isPlaying;
+                togglePlayIcon();
+                if (isPlaying) { lastTimestamp = performance.now(); requestAnimationFrame(playbackLoop); }
+            };
+
+            document.getElementById('btn-skip-to-solve').onclick = () => {
+                const phase = solveData.phases.find(p => p.phase_key === 'white_cross');
+                seekTo(phase.startTime);
+            };
+
+            document.querySelectorAll('#speed-controls button').forEach(btn => {
+                btn.onclick = () => {
+                    playbackSpeed = parseFloat(btn.dataset.speed);
+                    document.querySelectorAll('#speed-controls button').forEach(b => b.classList.remove('bg-blue-600'));
+                    btn.classList.add('bg-blue-600');
+                };
+            });
+
+            updateUI();
+        };
+    </script>
+</body>
+</html>

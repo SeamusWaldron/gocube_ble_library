@@ -1,0 +1,41 @@
+# Binaries (at root level only)
+/gocube
+/ble-tracker
+/ble-raw
+/ble-debug
+/ble-state
+
+# Build artifacts
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary
+*.test
+
+# Output of go coverage
+*.out
+
+# Go workspace
+go.work
+go.work.sum
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Reports (generated output)
+reports/
+
+# Local state and logs (user-specific)
+# Note: The actual data is in ~/.gocube_recorder/

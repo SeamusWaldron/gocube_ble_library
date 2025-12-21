@@ -1,4 +1,4 @@
-package cube
+package gocube
 
 // Phase detection for layer-by-layer solving method.
 // Standard orientation: White on top (U), Green in front (F).
@@ -12,7 +12,7 @@ func (c *Cube) IsWhiteCrossComplete() bool {
 	// Check U face edge positions are white
 	uEdges := []int{1, 3, 5, 7}
 	for _, pos := range uEdges {
-		if c.Facelets[U][pos] != White {
+		if c.Facelets[CubeFaceU][pos] != White {
 			return false
 		}
 	}
@@ -20,16 +20,16 @@ func (c *Cube) IsWhiteCrossComplete() bool {
 	// Check that adjacent edges match their center colors
 	// U[1] is adjacent to B[1], U[3] is adjacent to L[1]
 	// U[5] is adjacent to R[1], U[7] is adjacent to F[1]
-	if c.Facelets[B][1] != c.Facelets[B][4] { // B edge matches B center
+	if c.Facelets[CubeFaceB][1] != c.Facelets[CubeFaceB][4] { // B edge matches B center
 		return false
 	}
-	if c.Facelets[L][1] != c.Facelets[L][4] { // L edge matches L center
+	if c.Facelets[CubeFaceL][1] != c.Facelets[CubeFaceL][4] { // L edge matches L center
 		return false
 	}
-	if c.Facelets[R][1] != c.Facelets[R][4] { // R edge matches R center
+	if c.Facelets[CubeFaceR][1] != c.Facelets[CubeFaceR][4] { // R edge matches R center
 		return false
 	}
-	if c.Facelets[F][1] != c.Facelets[F][4] { // F edge matches F center
+	if c.Facelets[CubeFaceF][1] != c.Facelets[CubeFaceF][4] { // F edge matches F center
 		return false
 	}
 
@@ -46,26 +46,26 @@ func (c *Cube) IsTopLayerComplete() bool {
 
 	// Check all U face facelets are white
 	for i := 0; i < 9; i++ {
-		if c.Facelets[U][i] != White {
+		if c.Facelets[CubeFaceU][i] != White {
 			return false
 		}
 	}
 
 	// Check corner facelets on adjacent faces match their centers
 	// F face: top-left (0) and top-right (2) should match F center
-	if c.Facelets[F][0] != c.Facelets[F][4] || c.Facelets[F][2] != c.Facelets[F][4] {
+	if c.Facelets[CubeFaceF][0] != c.Facelets[CubeFaceF][4] || c.Facelets[CubeFaceF][2] != c.Facelets[CubeFaceF][4] {
 		return false
 	}
 	// R face: top-left (0) and top-right (2)
-	if c.Facelets[R][0] != c.Facelets[R][4] || c.Facelets[R][2] != c.Facelets[R][4] {
+	if c.Facelets[CubeFaceR][0] != c.Facelets[CubeFaceR][4] || c.Facelets[CubeFaceR][2] != c.Facelets[CubeFaceR][4] {
 		return false
 	}
 	// B face: top-left (0) and top-right (2)
-	if c.Facelets[B][0] != c.Facelets[B][4] || c.Facelets[B][2] != c.Facelets[B][4] {
+	if c.Facelets[CubeFaceB][0] != c.Facelets[CubeFaceB][4] || c.Facelets[CubeFaceB][2] != c.Facelets[CubeFaceB][4] {
 		return false
 	}
 	// L face: top-left (0) and top-right (2)
-	if c.Facelets[L][0] != c.Facelets[L][4] || c.Facelets[L][2] != c.Facelets[L][4] {
+	if c.Facelets[CubeFaceL][0] != c.Facelets[CubeFaceL][4] || c.Facelets[CubeFaceL][2] != c.Facelets[CubeFaceL][4] {
 		return false
 	}
 
@@ -81,7 +81,7 @@ func (c *Cube) IsMiddleLayerComplete() bool {
 	}
 
 	// Check middle edges on each side face
-	for _, face := range []Face{F, R, B, L} {
+	for _, face := range []CubeFace{CubeFaceF, CubeFaceR, CubeFaceB, CubeFaceL} {
 		center := c.Facelets[face][4]
 		if c.Facelets[face][3] != center || c.Facelets[face][5] != center {
 			return false
@@ -102,7 +102,7 @@ func (c *Cube) IsBottomCrossComplete() bool {
 	// Check D face edge positions are yellow
 	dEdges := []int{1, 3, 5, 7}
 	for _, pos := range dEdges {
-		if c.Facelets[D][pos] != Yellow {
+		if c.Facelets[CubeFaceD][pos] != Yellow {
 			return false
 		}
 	}
@@ -127,10 +127,10 @@ func (c *Cube) AreBottomCornersPositioned() bool {
 		positions [][2]int // [face][index] pairs for a corner
 		colors    []Color  // expected colors (in any order)
 	}{
-		{[][2]int{{int(F), 8}, {int(R), 6}, {int(D), 2}}, []Color{Green, Red, Yellow}},
-		{[][2]int{{int(R), 8}, {int(B), 6}, {int(D), 8}}, []Color{Red, Blue, Yellow}},
-		{[][2]int{{int(B), 8}, {int(L), 6}, {int(D), 6}}, []Color{Blue, Orange, Yellow}},
-		{[][2]int{{int(L), 8}, {int(F), 6}, {int(D), 0}}, []Color{Orange, Green, Yellow}},
+		{[][2]int{{int(CubeFaceF), 8}, {int(CubeFaceR), 6}, {int(CubeFaceD), 2}}, []Color{Green, Red, Yellow}},
+		{[][2]int{{int(CubeFaceR), 8}, {int(CubeFaceB), 6}, {int(CubeFaceD), 8}}, []Color{Red, Blue, Yellow}},
+		{[][2]int{{int(CubeFaceB), 8}, {int(CubeFaceL), 6}, {int(CubeFaceD), 6}}, []Color{Blue, Orange, Yellow}},
+		{[][2]int{{int(CubeFaceL), 8}, {int(CubeFaceF), 6}, {int(CubeFaceD), 0}}, []Color{Orange, Green, Yellow}},
 	}
 
 	for _, corner := range corners {
@@ -158,14 +158,14 @@ func (c *Cube) AreBottomCornersOriented() bool {
 
 	// All D face facelets should be yellow
 	for i := 0; i < 9; i++ {
-		if c.Facelets[D][i] != Yellow {
+		if c.Facelets[CubeFaceD][i] != Yellow {
 			return false
 		}
 	}
 
 	// And corner facelets on side faces should match their centers
 	// Check bottom corners of F, R, B, L
-	for _, face := range []Face{F, R, B, L} {
+	for _, face := range []CubeFace{CubeFaceF, CubeFaceR, CubeFaceB, CubeFaceL} {
 		center := c.Facelets[face][4]
 		if c.Facelets[face][6] != center || c.Facelets[face][8] != center {
 			return false
@@ -262,24 +262,24 @@ func (c *Cube) DetectPhase() DetectedPhase {
 
 // PhaseProgress returns which phases are complete.
 type PhaseProgress struct {
-	WhiteCross         bool
-	TopLayer           bool
-	MiddleLayer        bool
-	BottomCross        bool
-	CornersPositioned  bool
-	CornersOriented    bool
-	Solved             bool
+	WhiteCross        bool
+	TopLayer          bool
+	MiddleLayer       bool
+	BottomCross       bool
+	CornersPositioned bool
+	CornersOriented   bool
+	Solved            bool
 }
 
 // GetProgress returns the current progress through all phases.
 func (c *Cube) GetProgress() PhaseProgress {
 	return PhaseProgress{
-		WhiteCross:         c.IsWhiteCrossComplete(),
-		TopLayer:           c.IsTopLayerComplete(),
-		MiddleLayer:        c.IsMiddleLayerComplete(),
-		BottomCross:        c.IsBottomCrossComplete(),
-		CornersPositioned:  c.AreBottomCornersPositioned(),
-		CornersOriented:    c.AreBottomCornersOriented(),
-		Solved:             c.IsSolved(),
+		WhiteCross:        c.IsWhiteCrossComplete(),
+		TopLayer:          c.IsTopLayerComplete(),
+		MiddleLayer:       c.IsMiddleLayerComplete(),
+		BottomCross:       c.IsBottomCrossComplete(),
+		CornersPositioned: c.AreBottomCornersPositioned(),
+		CornersOriented:   c.AreBottomCornersOriented(),
+		Solved:            c.IsSolved(),
 	}
 }

@@ -4,60 +4,60 @@ package notation
 import (
 	"strings"
 
-	"github.com/seamusw/gocube/pkg/types"
+	"github.com/SeamusWaldron/gocube"
 )
 
 // ParseNotation parses a standard cube notation string into a Move.
 // Examples: R, R', R2, U, U', U2
-func ParseNotation(s string) (types.Move, bool) {
+func ParseNotation(s string) (gocube.Move, bool) {
 	s = strings.TrimSpace(s)
 	if len(s) == 0 {
-		return types.Move{}, false
+		return gocube.Move{}, false
 	}
 
 	// Extract face
 	faceChar := s[0]
-	var face types.Face
+	var face gocube.Face
 	switch faceChar {
 	case 'R', 'r':
-		face = types.FaceR
+		face = gocube.FaceR
 	case 'L', 'l':
-		face = types.FaceL
+		face = gocube.FaceL
 	case 'U', 'u':
-		face = types.FaceU
+		face = gocube.FaceU
 	case 'D', 'd':
-		face = types.FaceD
+		face = gocube.FaceD
 	case 'F', 'f':
-		face = types.FaceF
+		face = gocube.FaceF
 	case 'B', 'b':
-		face = types.FaceB
+		face = gocube.FaceB
 	default:
-		return types.Move{}, false
+		return gocube.Move{}, false
 	}
 
 	// Extract turn
-	turn := types.TurnCW // Default is clockwise
+	turn := gocube.TurnCW // Default is clockwise
 	if len(s) > 1 {
 		suffix := s[1:]
 		switch suffix {
 		case "'", "`":
-			turn = types.TurnCCW
+			turn = gocube.TurnCCW
 		case "2":
-			turn = types.Turn180
+			turn = gocube.Turn180
 		case "2'":
-			turn = types.Turn180 // Same as 180
+			turn = gocube.Turn180 // Same as 180
 		default:
-			return types.Move{}, false
+			return gocube.Move{}, false
 		}
 	}
 
-	return types.Move{Face: face, Turn: turn}, true
+	return gocube.Move{Face: face, Turn: turn}, true
 }
 
 // ParseSequence parses a space-separated sequence of moves.
-func ParseSequence(s string) ([]types.Move, error) {
+func ParseSequence(s string) ([]gocube.Move, error) {
 	parts := strings.Fields(s)
-	moves := make([]types.Move, 0, len(parts))
+	moves := make([]gocube.Move, 0, len(parts))
 
 	for _, part := range parts {
 		move, ok := ParseNotation(part)
@@ -71,7 +71,7 @@ func ParseSequence(s string) ([]types.Move, error) {
 }
 
 // FormatSequence formats a slice of moves as a space-separated string.
-func FormatSequence(moves []types.Move) string {
+func FormatSequence(moves []gocube.Move) string {
 	if len(moves) == 0 {
 		return ""
 	}
@@ -86,14 +86,14 @@ func FormatSequence(moves []types.Move) string {
 
 // NormalizeTurn normalizes a turn value to the range [-1, 2].
 // -3 -> 1, -2 -> 2, -1 -> -1, 0 -> 0, 1 -> 1, 2 -> 2, 3 -> -1
-func NormalizeTurn(turn int) types.Turn {
+func NormalizeTurn(turn int) gocube.Turn {
 	// Normalize to [-2, 2]
 	turn = ((turn % 4) + 4) % 4
 	if turn == 3 {
 		turn = -1
 	}
 	if turn == 0 {
-		return types.TurnCW // Shouldn't happen, but treat as CW
+		return gocube.TurnCW // Shouldn't happen, but treat as CW
 	}
-	return types.Turn(turn)
+	return gocube.Turn(turn)
 }

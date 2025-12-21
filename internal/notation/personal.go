@@ -1,7 +1,7 @@
 package notation
 
 import (
-	"github.com/seamusw/gocube/pkg/types"
+	"github.com/SeamusWaldron/gocube"
 )
 
 // ToPersonalNotation converts a Move to your personal notation.
@@ -14,65 +14,65 @@ import (
 //   D  -> "B rotate right"  D' -> "B rotate left"  D2 -> "B rotate right x 2"
 //   F  -> "F rotate clockwise"  F' -> "F rotate anti-clockwise"  F2 -> "F rotate x 2"
 //   B  -> "Back rotate clockwise"  B' -> "Back rotate anti-clockwise"  B2 -> "Back rotate x 2"
-func ToPersonalNotation(m types.Move) string {
+func ToPersonalNotation(m gocube.Move) string {
 	switch m.Face {
-	case types.FaceR:
+	case gocube.FaceR:
 		switch m.Turn {
-		case types.TurnCW:
+		case gocube.TurnCW:
 			return "R up"
-		case types.TurnCCW:
+		case gocube.TurnCCW:
 			return "R down"
-		case types.Turn180:
+		case gocube.Turn180:
 			return "R up x 2"
 		}
 
-	case types.FaceL:
+	case gocube.FaceL:
 		switch m.Turn {
-		case types.TurnCW:
+		case gocube.TurnCW:
 			return "L down"
-		case types.TurnCCW:
+		case gocube.TurnCCW:
 			return "L up"
-		case types.Turn180:
+		case gocube.Turn180:
 			return "L down x 2"
 		}
 
-	case types.FaceU:
+	case gocube.FaceU:
 		switch m.Turn {
-		case types.TurnCW:
+		case gocube.TurnCW:
 			return "T rotate right"
-		case types.TurnCCW:
+		case gocube.TurnCCW:
 			return "T rotate left"
-		case types.Turn180:
+		case gocube.Turn180:
 			return "T rotate right x 2"
 		}
 
-	case types.FaceD:
+	case gocube.FaceD:
 		switch m.Turn {
-		case types.TurnCW:
+		case gocube.TurnCW:
 			return "B rotate right"
-		case types.TurnCCW:
+		case gocube.TurnCCW:
 			return "B rotate left"
-		case types.Turn180:
+		case gocube.Turn180:
 			return "B rotate right x 2"
 		}
 
-	case types.FaceF:
+	case gocube.FaceF:
 		switch m.Turn {
-		case types.TurnCW:
+		case gocube.TurnCW:
 			return "F rotate clockwise"
-		case types.TurnCCW:
+		case gocube.TurnCCW:
 			return "F rotate anti-clockwise"
-		case types.Turn180:
+		case gocube.Turn180:
 			return "F rotate x 2"
 		}
 
-	case types.FaceB:
+	case gocube.FaceB:
 		switch m.Turn {
-		case types.TurnCW:
+		case gocube.TurnCW:
 			return "Back rotate clockwise"
-		case types.TurnCCW:
+		case gocube.TurnCCW:
 			return "Back rotate anti-clockwise"
-		case types.Turn180:
+		case gocube.Turn180:
 			return "Back rotate x 2"
 		}
 	}
@@ -81,7 +81,7 @@ func ToPersonalNotation(m types.Move) string {
 }
 
 // ToPersonalSequence converts a slice of moves to personal notation strings.
-func ToPersonalSequence(moves []types.Move) []string {
+func ToPersonalSequence(moves []gocube.Move) []string {
 	result := make([]string, len(moves))
 	for i, m := range moves {
 		result[i] = ToPersonalNotation(m)
@@ -90,7 +90,7 @@ func ToPersonalSequence(moves []types.Move) []string {
 }
 
 // FormatPersonalSequence formats moves as a comma-separated personal notation string.
-func FormatPersonalSequence(moves []types.Move) string {
+func FormatPersonalSequence(moves []gocube.Move) string {
 	if len(moves) == 0 {
 		return ""
 	}

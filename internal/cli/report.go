@@ -10,9 +10,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/seamusw/gocube/internal/analysis"
-	"github.com/seamusw/gocube/internal/storage"
-	"github.com/seamusw/gocube/pkg/types"
+	"github.com/SeamusWaldron/gocube"
+	"github.com/SeamusWaldron/gocube/internal/analysis"
+	"github.com/SeamusWaldron/gocube/internal/storage"
 )
 
 var (
@@ -154,8 +154,8 @@ func runReportSolve(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to get moves: %w", err)
 	}
 
-	// Convert to types.Move for analysis
-	moves := storage.ToTypes(moveRecords)
+	// Convert to gocube.Move for analysis
+	moves := storage.ToMoves(moveRecords)
 
 	// Get phase segments
 	segments, err := phaseRepo.GetPhaseSegments(solve.SolveID)
@@ -379,11 +379,11 @@ func runReportSolve(cmd *cobra.Command, args []string) error {
 	}
 
 	// 6. Final phase analysis (if we have bottom_orient phase)
-	var finalPhaseMoves []types.Move
+	var finalPhaseMoves []gocube.Move
 	for _, seg := range segments {
 		if seg.PhaseKey == "bottom_orient" {
 			phaseMoveRecords, _ := moveRepo.GetBySolveRange(solve.SolveID, seg.StartTsMs, seg.EndTsMs)
-			finalPhaseMoves = storage.ToTypes(phaseMoveRecords)
+			finalPhaseMoves = storage.ToMoves(phaseMoveRecords)
 			break
 		}
 	}
@@ -419,7 +419,7 @@ func runReportSolve(cmd *cobra.Command, args []string) error {
 		fmt.Println("  - Analyzing phases...")
 		for _, seg := range segments {
 			phaseMoveRecords, _ := moveRepo.GetBySolveRange(solve.SolveID, seg.StartTsMs, seg.EndTsMs)
-			phaseMoves := storage.ToTypes(phaseMoveRecords)
+			phaseMoves := storage.ToMoves(phaseMoveRecords)
 			var phaseNotations []string
 			for _, m := range phaseMoves {
 				phaseNotations = append(phaseNotations, m.Notation())

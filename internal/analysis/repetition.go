@@ -2,7 +2,7 @@
 package analysis
 
 import (
-	"github.com/seamusw/gocube/pkg/types"
+	"github.com/SeamusWaldron/gocube"
 )
 
 // Cancellation represents an immediate move cancellation (e.g., R followed by R').
@@ -42,7 +42,7 @@ type RepetitionReport struct {
 }
 
 // AnalyzeRepetitions analyzes a move sequence for repetitions and wasted motion.
-func AnalyzeRepetitions(moves []types.Move) *RepetitionReport {
+func AnalyzeRepetitions(moves []gocube.Move) *RepetitionReport {
 	report := &RepetitionReport{
 		ImmediateCancellations: []Cancellation{},
 		MergeOpportunities:     []MergeOpportunity{},
@@ -95,7 +95,7 @@ func AnalyzeRepetitions(moves []types.Move) *RepetitionReport {
 }
 
 // findBackAndForth finds alternating move patterns like R U R U R U.
-func findBackAndForth(moves []types.Move) []BackAndForthPattern {
+func findBackAndForth(moves []gocube.Move) []BackAndForthPattern {
 	var patterns []BackAndForthPattern
 
 	if len(moves) < 4 {
@@ -140,12 +140,12 @@ func findBackAndForth(moves []types.Move) []BackAndForthPattern {
 }
 
 // OptimizeMoves returns an optimized move sequence with cancellations and merges applied.
-func OptimizeMoves(moves []types.Move) []types.Move {
+func OptimizeMoves(moves []gocube.Move) []gocube.Move {
 	if len(moves) == 0 {
 		return moves
 	}
 
-	result := make([]types.Move, 0, len(moves))
+	result := make([]gocube.Move, 0, len(moves))
 
 	for _, move := range moves {
 		if len(result) == 0 {
@@ -172,7 +172,7 @@ func OptimizeMoves(moves []types.Move) []types.Move {
 }
 
 // CalculateEfficiency calculates the efficiency ratio (optimized/original).
-func CalculateEfficiency(original, optimized []types.Move) float64 {
+func CalculateEfficiency(original, optimized []gocube.Move) float64 {
 	if len(original) == 0 {
 		return 1.0
 	}

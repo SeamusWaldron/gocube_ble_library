@@ -1,5 +1,26 @@
-// Package types contains shared type definitions for the gocube application.
-package types
+// Package gocube provides a Go library for interacting with GoCube smart
+// Rubik's cubes via Bluetooth Low Energy (BLE).
+//
+// The library supports:
+//   - Device discovery and connection
+//   - Real-time move tracking with timestamps
+//   - Cube state simulation and phase detection
+//   - Orientation tracking via quaternion conversion
+//
+// Basic usage:
+//
+//	client, _ := gocube.NewClient()
+//	defer client.Disconnect()
+//
+//	results, _ := client.Scan(ctx, 5*time.Second)
+//	client.Connect(ctx, results[0].UUID)
+//
+//	client.SetMessageCallback(func(msg gocube.Message) {
+//	    if rot, ok := msg.AsRotation(); ok {
+//	        fmt.Printf("Move: %s\n", rot.Move.Notation())
+//	    }
+//	})
+package gocube
 
 // Face represents a cube face in standard notation.
 type Face string
@@ -167,4 +188,106 @@ func MoveFromToken(token uint8) Move {
 	}
 
 	return Move{Face: face, Turn: turn}
+}
+
+// ColorToFace maps GoCube color names to standard cube face notation.
+// This mapping assumes the standard orientation: White on top, Green in front.
+var ColorToFace = map[string]Face{
+	"white":  FaceU, // Up
+	"yellow": FaceD, // Down
+	"green":  FaceF, // Front
+	"blue":   FaceB, // Back
+	"red":    FaceR, // Right
+	"orange": FaceL, // Left
+}
+
+// RotationToMove converts a GoCube rotation event to a canonical Move.
+func RotationToMove(rot RotationEvent, timestampMs int64) Move {
+	face := ColorToFace[rot.Color]
+
+	var turn Turn
+	if rot.Clockwise {
+		turn = TurnCW
+	} else {
+		turn = TurnCCW
+	}
+
+	return Move{
+		Face:      face,
+		Turn:      turn,
+		Timestamp: timestampMs,
+	}
+}
+
+// RotationsToMoves converts a slice of rotation events to canonical moves.
+// It also handles merging adjacent same-face moves (e.g., two R clockwise = R2).
+func RotationsToMoves(rotations []RotationEvent, timestampMs int64) []Move {
+	if len(rotations) == 0 {
+		return nil
+	}
+
+	moves := make([]Move, 0, len(rotations))
+	for _, rot := range rotations {
+		move := RotationToMove(rot, timestampMs)
+		moves = append(moves, move)
+	}
+
+	// Merge adjacent same-face moves
+	return MergeMoves(moves)
+}
+
+// MergeMoves merges adjacent same-face moves.
+// For example: R R becomes R2, R R R becomes R2 R', R R R R cancels out.
+func MergeMoves(moves []Move) []Move {
+	if len(moves) <= 1 {
+		return moves
+	}
+
+	result := make([]Move, 0, len(moves))
+
+	for _, move := range moves {
+		if len(result) == 0 {
+			result = append(result, move)
+			continue
+		}
+
+		last := &result[len(result)-1]
+		if last.Face == move.Face {
+			// Try to merge
+			merged := last.Merge(move)
+			if merged == nil {
+				// Moves cancelled out - remove the last move
+				result = result[:len(result)-1]
+			} else {
+				// Replace last with merged
+				*last = *merged
+			}
+		} else {
+			result = append(result, move)
+		}
+	}
+
+	return result
+}
+
+// MovesToNotation converts a slice of moves to notation strings.
+func MovesToNotation(moves []Move) []string {
+	result := make([]string, len(moves))
+	for i, m := range moves {
+		result[i] = m.Notation()
+	}
+	return result
+}
+
+// MovesToNotationString converts a slice of moves to a single space-separated notation string.
+func MovesToNotationString(moves []Move) string {
+	notations := MovesToNotation(moves)
+	result := ""
+	for i, n := range notations {
+		if i > 0 {
+			result += " "
+		}
+		result += n
+	}
+	return result
 }

@@ -1,7 +1,7 @@
 package analysis
 
 import (
-	"github.com/seamusw/gocube/pkg/types"
+	"github.com/SeamusWaldron/gocube"
 )
 
 // SolveSummary contains comprehensive statistics for a single solve.
@@ -40,7 +40,7 @@ type PauseInfo struct {
 }
 
 // AnalyzePauses finds all significant pauses in a move sequence.
-func AnalyzePauses(moves []types.Move, thresholdMs int64) []PauseInfo {
+func AnalyzePauses(moves []gocube.Move, thresholdMs int64) []PauseInfo {
 	var pauses []PauseInfo
 
 	for i := 1; i < len(moves); i++ {
@@ -58,7 +58,7 @@ func AnalyzePauses(moves []types.Move, thresholdMs int64) []PauseInfo {
 }
 
 // CalculateTPS calculates turns per second for a move sequence.
-func CalculateTPS(moves []types.Move, durationMs int64) float64 {
+func CalculateTPS(moves []gocube.Move, durationMs int64) float64 {
 	if durationMs <= 0 {
 		return 0
 	}
@@ -66,7 +66,7 @@ func CalculateTPS(moves []types.Move, durationMs int64) float64 {
 }
 
 // CalculateAvgMoveDuration calculates the average time between moves.
-func CalculateAvgMoveDuration(moves []types.Move) float64 {
+func CalculateAvgMoveDuration(moves []gocube.Move) float64 {
 	if len(moves) < 2 {
 		return 0
 	}
@@ -76,7 +76,7 @@ func CalculateAvgMoveDuration(moves []types.Move) float64 {
 }
 
 // FindLongestPause finds the longest pause in a move sequence.
-func FindLongestPause(moves []types.Move) int64 {
+func FindLongestPause(moves []gocube.Move) int64 {
 	var longest int64
 
 	for i := 1; i < len(moves); i++ {
@@ -90,7 +90,7 @@ func FindLongestPause(moves []types.Move) int64 {
 }
 
 // CountPausesOver counts pauses over a threshold.
-func CountPausesOver(moves []types.Move, thresholdMs int64) int {
+func CountPausesOver(moves []gocube.Move, thresholdMs int64) int {
 	count := 0
 	for i := 1; i < len(moves); i++ {
 		gap := moves[i].Timestamp - moves[i-1].Timestamp
@@ -103,18 +103,18 @@ func CountPausesOver(moves []types.Move, thresholdMs int64) int {
 
 // MovementProfile analyzes the movement patterns in a solve.
 type MovementProfile struct {
-	FaceCounts    map[types.Face]int     `json:"face_counts"`
-	TurnCounts    map[types.Turn]int     `json:"turn_counts"`
-	MostUsedFace  types.Face             `json:"most_used_face"`
-	MostUsedTurn  types.Turn             `json:"most_used_turn"`
+	FaceCounts    map[gocube.Face]int     `json:"face_counts"`
+	TurnCounts    map[gocube.Turn]int     `json:"turn_counts"`
+	MostUsedFace  gocube.Face             `json:"most_used_face"`
+	MostUsedTurn  gocube.Turn             `json:"most_used_turn"`
 	FaceSequences map[string]int         `json:"face_sequences"` // e.g., "RU" -> count
 }
 
 // AnalyzeMovementProfile analyzes which faces and turns are most used.
-func AnalyzeMovementProfile(moves []types.Move) *MovementProfile {
+func AnalyzeMovementProfile(moves []gocube.Move) *MovementProfile {
 	profile := &MovementProfile{
-		FaceCounts:    make(map[types.Face]int),
-		TurnCounts:    make(map[types.Turn]int),
+		FaceCounts:    make(map[gocube.Face]int),
+		TurnCounts:    make(map[gocube.Turn]int),
 		FaceSequences: make(map[string]int),
 	}
 

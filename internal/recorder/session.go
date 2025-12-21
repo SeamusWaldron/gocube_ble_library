@@ -5,9 +5,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/seamusw/gocube/internal/gocube"
-	"github.com/seamusw/gocube/internal/storage"
-	"github.com/seamusw/gocube/pkg/types"
+	"github.com/SeamusWaldron/gocube"
+	"github.com/SeamusWaldron/gocube/internal/storage"
 )
 
 // SessionState represents the current state of a recording session.
@@ -56,7 +55,7 @@ type Session struct {
 	orientationRepo *storage.OrientationRepository
 
 	// Callbacks
-	onMove        func(types.Move)
+	onMove        func(gocube.Move)
 	onPhase       func(string)
 	onOrientation func(upFace, frontFace string)
 }
@@ -76,7 +75,7 @@ func NewSession(db *storage.DB, stateFile *StateFile) *Session {
 }
 
 // SetMoveCallback sets the callback for new moves.
-func (s *Session) SetMoveCallback(cb func(types.Move)) {
+func (s *Session) SetMoveCallback(cb func(gocube.Move)) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.onMove = cb

@@ -12,12 +12,9 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
 
-	"github.com/seamusw/gocube/internal/ble"
-	"github.com/seamusw/gocube/internal/cube"
-	"github.com/seamusw/gocube/internal/gocube"
-	"github.com/seamusw/gocube/internal/recorder"
-	"github.com/seamusw/gocube/internal/storage"
-	"github.com/seamusw/gocube/pkg/types"
+	"github.com/SeamusWaldron/gocube"
+	"github.com/SeamusWaldron/gocube/internal/recorder"
+	"github.com/SeamusWaldron/gocube/internal/storage"
 )
 
 var recordCmd = &cobra.Command{
@@ -69,7 +66,7 @@ type tickMsg time.Time
 type bleConnectedMsg struct{ name string }
 type bleDisconnectedMsg struct{}
 type bleMessageMsg struct{ msg *gocube.Message }
-type moveRecordedMsg struct{ move types.Move }
+type moveRecordedMsg struct{ move gocube.Move }
 type phaseMarkedMsg struct{ phase string }
 type inspectionFlashMsg struct{} // Periodic flash during inspection
 type solvedLedOffMsg struct{}    // Turn LED off after solve celebration
@@ -80,13 +77,13 @@ type phaseDetectedMsg struct{ phase string }
 // Model
 type recordModel struct {
 	// BLE
-	client       *ble.Client
+	client       *gocube.Client
 	connected    bool
 	deviceName   string
 	battery      int
 	msgChan      chan *gocube.Message
-	scanResults  []ble.ScanResult // Pre-scanned devices
-	prescanClient *ble.Client      // Client used for pre-scan
+	scanResults  []gocube.ScanResult // Pre-scanned devices
+	prescanClient *gocube.Client      // Client used for pre-scan
 
 	// Database
 	db        *storage.DB
@@ -94,7 +91,7 @@ type recordModel struct {
 	session   *recorder.Session
 
 	// Cube state tracking
-	tracker       *cube.Tracker
+	tracker       *gocube.Tracker
 	autoPhase     bool   // whether to auto-detect phases
 	detectedPhase string // current detected phase from cube state
 	solveStarted  bool   // true once first move is made after inspection
@@ -108,7 +105,7 @@ type recordModel struct {
 	recording    bool
 	solveID      string
 	currentPhase string
-	moves        []types.Move
+	moves        []gocube.Move
 	startTime    time.Time
 	elapsed      time.Duration
 
@@ -123,7 +120,7 @@ type recordModel struct {
 	logPath   string
 }
 
-func newRecordModel(db *storage.DB, stateFile *recorder.StateFile, prescanClient *ble.Client, scanResults []ble.ScanResult) *recordModel {
+func newRecordModel(db *storage.DB, stateFile *recorder.StateFile, prescanClient *gocube.Client, scanResults []gocube.ScanResult) *recordModel {
 	// Create logger and start logging
 	logger := NewSolveLogger()
 	homeDir, _ := os.UserHomeDir()
@@ -137,7 +134,7 @@ func newRecordModel(db *storage.DB, stateFile *recorder.StateFile, prescanClient
 		db:            db,
 		stateFile:     stateFile,
 		session:       recorder.NewSession(db, stateFile),
-		tracker:       cube.NewTracker(),
+		tracker:       gocube.NewTracker(),
 		autoPhase:     true, // Enable auto phase detection
 		battery:       -1,
 		msgChan:       make(chan *gocube.Message, 100),
@@ -208,7 +205,7 @@ func (m *recordModel) connectBLE() tea.Cmd {
 		results := m.scanResults
 
 		// Find the target device - prefer last known device if found in scan
-		var target *ble.ScanResult
+		var target *gocube.ScanResult
 		if state.LastDeviceID != "" {
 			for i := range results {
 				if results[i].UUID == state.LastDeviceID {
@@ -696,7 +693,7 @@ func phaseDisplayName(key string) string {
 }
 
 // getNextPhase returns the name of the next phase to work on based on progress
-func getNextPhase(progress cube.PhaseProgress) string {
+func getNextPhase(progress gocube.PhaseProgress) string {
 	if !progress.WhiteCross {
 		return "White Cross"
 	}

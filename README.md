@@ -1,249 +1,238 @@
-# GoCube Solve Recorder
+# GoCube
 
-A CLI application for recording and analyzing Rubik's cube solves using a GoCube smart cube.
+A Go library for interacting with GoCube smart Rubik's cubes via Bluetooth Low Energy (BLE).
+
+[![Go Reference](https://pkg.go.dev/badge/github.com/SeamusWaldron/gocube.svg)](https://pkg.go.dev/github.com/SeamusWaldron/gocube)
+[![CI](https://github.com/SeamusWaldron/gocube/actions/workflows/ci.yml/badge.svg)](https://github.com/SeamusWaldron/gocube/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 ## Features
 
-- **Real-time Move Tracking**: Connects to GoCube via Bluetooth and captures every move with timestamps
-- **Automatic Phase Detection**: Detects when you complete each solving phase (cross, corners, layers, etc.)
-- **Orientation Tracking**: Records cube rotations for visualization and analysis
-- **Solve Recording**: Records complete solve sessions with timestamps and phase markers
-- **Interactive TUI**: Beautiful terminal interface for recording solves
-- **Comprehensive Reports**: Generates detailed analysis reports with diagnostics
-- **Playback Export**: JSON timeline for web-based solve visualization
-- **SQLite Storage**: Persistent storage for all solve data
-
-## Requirements
-
-- macOS (with Bluetooth)
-- Go 1.24+
-- GoCube smart cube (tested with GoCube Edge)
+- **Device Discovery**: Scan for and connect to GoCube devices via BLE
+- **Real-time Move Tracking**: Capture every move with millisecond timestamps
+- **Cube State Simulation**: Track the virtual cube state as moves are applied
+- **Phase Detection**: Automatically detect solving phases (cross, F2L, OLL, PLL)
+- **Orientation Tracking**: Monitor cube orientation via quaternion data
+- **Analysis Algorithms**: Analyze solve performance with detailed metrics
 
 ## Installation
 
+### Library
+
 ```bash
-# Clone the repository
-git clone https://github.com/seamusw/gocube.git
-cd gocube
-
-# Build (requires CGO for Bluetooth)
-CGO_ENABLED=1 go build -o gocube ./cmd/gocube
-
-# Build debug tools (optional)
-go build -o ble-tracker ./cmd/ble-tracker
+go get github.com/SeamusWaldron/gocube
 ```
+
+### CLI Application
+
+```bash
+go install github.com/SeamusWaldron/gocube/cmd/gocube@latest
+```
+
+## Requirements
+
+- macOS (BLE functionality is currently macOS-only)
+- Go 1.22+
+- GoCube smart cube (tested with GoCube Edge)
 
 ## Quick Start
 
-### 1. Check Connection
+### Using as a Library
 
-```bash
-./gocube status
-```
+```go
+package main
 
-This scans for your GoCube and shows connection status. Make sure:
-- Your GoCube is NOT connected to your phone
-- The cube is awake (rotate it to wake it up)
+import (
+    "context"
+    "fmt"
+    "time"
 
-### 2. Record a Solve
+    "github.com/SeamusWaldron/gocube"
+)
 
-```bash
-./gocube solve record
-```
+func main() {
+    // Create a new BLE client
+    client, err := gocube.NewClient()
+    if err != nil {
+        panic(err)
+    }
+    defer client.Disconnect()
 
-This starts the interactive recording TUI:
+    // Scan for GoCube devices
+    ctx := context.Background()
+    results, err := client.Scan(ctx, 5*time.Second)
+    if err != nil {
+        panic(err)
+    }
 
-1. Press `s` to start a new solve
-2. Scramble your cube (screen shows "SCRAMBLE THE CUBE")
-3. Inspect the cube (screen shows "INSPECTION")
-4. Press `SPACE` when ready to start solving
-5. Solve the cube - phases are auto-detected!
-6. Press `e` to end, or it auto-ends when solved
+    if len(results) == 0 {
+        fmt.Println("No GoCube found")
+        return
+    }
 
-### 3. Generate Report
+    // Connect to the first device found
+    if err := client.Connect(ctx, results[0].UUID); err != nil {
+        panic(err)
+    }
 
-```bash
-./gocube report solve --last
-```
+    // Create a cube state tracker
+    tracker := gocube.NewTracker()
+    tracker.SetPhaseCallback(func(phase gocube.DetectedPhase, key string) {
+        fmt.Printf("Phase completed: %s\n", key)
+    })
 
-This generates a comprehensive analysis report in `reports/YYYY-MM-DD_HHMMSS/` including:
-- `solve_summary.json` - Overview statistics
-- `playback.json` - Timeline for visualization playback
-- `moves.json` - Detailed move data with timestamps
-- `diagnostics.json` - Performance metrics and patterns
-- `phase_analysis.json` - Per-phase breakdown
-- `ngram_report.json` - Repeated move patterns
+    // Set up message callback for moves
+    client.SetMessageCallback(func(msg *gocube.Message) {
+        if msg.Type == gocube.MsgTypeRotation {
+            rotations, _ := gocube.DecodeRotation(msg.Payload)
+            moves := gocube.RotationsToMoves(rotations, 0)
+            for _, move := range moves {
+                fmt.Printf("Move: %s\n", move.Notation())
+                tracker.ApplyMove(move)
+            }
+        }
+    })
 
-### 4. View Solves
-
-```bash
-./gocube solve list
-./gocube solve show --last
-```
-
-## Commands
-
-| Command | Description |
-|---------|-------------|
-| `gocube status` | Show connection and cube status |
-| `gocube solve record` | Interactive solve recording |
-| `gocube solve replay` | Replay a recorded session |
-| `gocube solve list` | List recent solves |
-| `gocube solve show <id>` | Show solve details |
-| `gocube report solve --last` | Generate analysis report |
-| `gocube report trend --window 50` | Trend analysis across solves |
-
-## Report Output
-
-Reports are saved to `reports/YYYY-MM-DD_HHMMSS/` and include:
-
-### Diagnostics
-- **Reversals**: Immediate cancellations (R R') and wasted moves
-- **Face Entropy**: Measures searching vs algorithmic solving
-- **Edge Placements**: Cross building efficiency (white_cross phase)
-- **Pause Analysis**: Gaps between moves indicating thinking time
-- **Short Loops**: Patterns like A B A' indicating uncertainty
-
-### Playback Export
-The `playback.json` file contains a chronological timeline of moves and orientation changes, suitable for web-based 3D visualization:
-
-```json
-{
-  "duration_ms": 101917,
-  "total_moves": 200,
-  "timeline": [
-    {"ts_ms": 150, "type": "move", "face": "R", "turn": 1, "notation": "R"},
-    {"ts_ms": 1200, "type": "orientation", "up_face": "F", "front_face": "D"}
-  ]
+    // Keep running...
+    select {}
 }
 ```
 
-## Replay Mode
-
-Every solve session is automatically logged to `~/.gocube_recorder/logs/`. You can replay these logs to debug phase detection without needing the physical cube:
+### Using the CLI
 
 ```bash
-# List available logs
-./gocube solve replay
+# Check connection status
+gocube status
 
-# Replay a specific log
-./gocube solve replay solve_20241221_143052.jsonl
+# Record a solve
+gocube solve record
 
-# Replay at 2x speed
-./gocube solve replay <log-file> --speed 2.0
+# Generate analysis report
+gocube report solve --last
 
-# Step through events manually
-./gocube solve replay <log-file> --step
+# List recent solves
+gocube solve list
 ```
 
-### Replay Keyboard Shortcuts
-| Key | Action |
-|-----|--------|
-| `SPACE/n` | Next event (step mode) / Play-pause |
-| `p` | Pause/resume |
-| `r` | Reset to beginning |
-| `d` | Toggle debug mode (show cube state) |
-| `+/-` | Increase/decrease speed |
-| `q` | Quit |
+## Library API
 
-## Keyboard Shortcuts (Recording TUI)
+### Core Types
 
-### Before Starting
-| Key | Action |
-|-----|--------|
-| `s` | Start new solve |
-| `d` | Toggle debug mode |
-| `q` | Quit |
+```go
+// Move represents a single cube move
+type Move struct {
+    Face      Face   // R, L, U, D, F, B
+    Turn      Turn   // TurnCW (1), TurnCCW (-1), Turn180 (2)
+    Timestamp int64  // Milliseconds
+}
 
-### During Inspection/Scramble
-| Key | Action |
-|-----|--------|
-| `SPACE` | Start solve timer |
-| `d` | Toggle debug mode |
-| `e` | End/cancel |
-| `q` | Quit |
+// Cube represents the cube state
+type Cube struct {
+    // 6 faces x 9 facelets
+}
 
-### During Solve
-| Key | Action |
-|-----|--------|
-| `1-7` | Manually mark phase |
-| `r` | Mark RHS algorithm |
-| `l` | Mark LHS algorithm |
-| `d` | Toggle debug mode |
-| `e` | End solve |
-| `q` | Quit |
+// Tracker wraps Cube with phase detection
+type Tracker struct {
+    // ...
+}
+
+// Client handles BLE communication
+type Client struct {
+    // ...
+}
+```
+
+### Key Functions
+
+```go
+// BLE
+func NewClient() (*Client, error)
+func (c *Client) Scan(ctx context.Context, timeout time.Duration) ([]ScanResult, error)
+func (c *Client) Connect(ctx context.Context, uuid string) error
+func (c *Client) SetMessageCallback(cb func(*Message))
+
+// Cube State
+func NewCube() *Cube
+func (c *Cube) ApplyMove(m Move)
+func (c *Cube) IsSolved() bool
+func (c *Cube) DetectPhase() DetectedPhase
+
+// Tracking
+func NewTracker() *Tracker
+func (t *Tracker) ApplyMove(m Move)
+func (t *Tracker) SetPhaseCallback(cb func(DetectedPhase, string))
+
+// Message Decoding
+func DecodeRotation(payload []byte) ([]RotationEvent, error)
+func DecodeBattery(payload []byte) (*BatteryEvent, error)
+func DecodeOrientation(payload []byte) (*OrientationEvent, error)
+```
 
 ## Solving Phases
 
-The app tracks standard layer-by-layer solving:
+The library detects these standard layer-by-layer solving phases:
 
-| # | Phase | What to Complete |
-|---|-------|------------------|
-| 0 | Inspection | Scramble + look at cube |
-| 1 | White Cross | 4 white edges on top |
-| 2 | Top Corners | Complete white face |
-| 3 | Middle Layer | Middle layer edges |
-| 4 | Bottom Cross | Yellow cross on bottom |
-| 5 | Position Corners | Yellow corners in place |
-| 6 | Rotate Corners | Orient yellow corners |
-| 7 | Complete | Solved! |
+| Phase | Description |
+|-------|-------------|
+| `scrambled` | Cube is scrambled |
+| `inspection` | Pre-solve inspection |
+| `white_cross` | Building the white cross |
+| `white_corners` | Completing first layer corners |
+| `middle_layer` | Completing F2L |
+| `bottom_cross` | Yellow cross (OLL cross) |
+| `bottom_perm` | Positioning last layer (PLL) |
+| `bottom_orient` | Orienting last layer corners |
+| `solved` | Cube is solved |
 
-## Debug Tools
+## CLI Features
 
-```bash
-# Real-time cube state tracker
-./ble-tracker
+The included CLI application provides:
 
-# Raw BLE message viewer
-./ble-raw
+- **Interactive Recording TUI**: Beautiful terminal interface for recording solves
+- **Automatic Phase Detection**: Real-time phase tracking during solves
+- **Comprehensive Reports**: Detailed analysis including:
+  - Move statistics and TPS (turns per second)
+  - Phase-by-phase breakdown
+  - Pattern detection (n-grams)
+  - Inefficiency analysis (cancellations, merges)
+  - Playback export for visualization
+- **Session Replay**: Debug phase detection without the physical cube
+- **SQLite Storage**: Persistent storage for all solve data
 
-# BLE device scanner
-./ble-debug
-```
+### Recording Keyboard Shortcuts
+
+| Key | Action |
+|-----|--------|
+| `s` | Start new solve |
+| `SPACE` | Start solve timer |
+| `1-7` | Manually mark phase |
+| `d` | Toggle debug mode |
+| `e` | End solve |
+| `q` | Quit |
 
 ## Troubleshooting
 
 ### "No GoCube devices found"
 
-1. **Disconnect from phone**: Go to iPhone Settings > Bluetooth > GoCube > Forget This Device
-2. **Wake the cube**: Rotate it to turn on the LED
-3. **Run status twice**: Sometimes macOS BLE needs multiple scans
-   ```bash
-   ./gocube status
-   ./gocube status  # Second time usually works
-   ```
-
-### Connection drops
-
-The cube may disconnect after inactivity. Just run the command again - it will reconnect.
+1. Disconnect the cube from your phone (Bluetooth settings > Forget Device)
+2. Wake the cube by rotating it
+3. Try scanning twice (macOS BLE sometimes needs multiple scans)
 
 ### Phases not detecting correctly
 
-Make sure you're holding the cube with **white on top, green facing you** when you start. The tracker assumes standard orientation.
-
-### No orientation data in playback.json
-
-Orientation tracking is enabled automatically on connection. If `total_orientations` is 0, ensure your GoCube supports orientation (GoCube Edge does).
+Ensure standard orientation: **white on top, green facing you** when starting.
 
 ## Data Storage
 
-- Database: `~/.gocube_recorder/gocube.db`
-- State: `~/.gocube_recorder/state.json`
-- Logs: `~/.gocube_recorder/logs/`
-- Reports: `./reports/YYYY-MM-DD_HHMMSS/`
-
-## Technical Details
-
-See [docs/SPECIFICATION.md](docs/SPECIFICATION.md) for complete technical documentation including:
-- GoCube BLE protocol
-- Database schema
-- Cube model implementation
-- Phase detection algorithms
-
-## License
-
-MIT
+The CLI stores data in `~/.gocube_recorder/`:
+- `gocube.db` - SQLite database
+- `state.json` - Application state
+- `logs/` - Session logs for replay
 
 ## Contributing
 
-Contributions welcome! Please read the specification first to understand the architecture.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+
+## License
+
+MIT - see [LICENSE](LICENSE) for details.

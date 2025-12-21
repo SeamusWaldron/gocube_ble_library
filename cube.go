@@ -1,5 +1,4 @@
-// Package cube provides a 3x3 Rubik's cube model with state tracking.
-package cube
+package gocube
 
 import "fmt"
 
@@ -34,31 +33,32 @@ func (c Color) String() string {
 	}
 }
 
-// Face represents a cube face.
-type Face int
+// CubeFace represents a cube face for the cube model.
+// This is distinct from Face which is used for move notation.
+type CubeFace int
 
 const (
-	U Face = 0 // Up (White)
-	D Face = 1 // Down (Yellow)
-	F Face = 2 // Front (Green)
-	B Face = 3 // Back (Blue)
-	R Face = 4 // Right (Red)
-	L Face = 5 // Left (Orange)
+	CubeFaceU CubeFace = 0 // Up (White)
+	CubeFaceD CubeFace = 1 // Down (Yellow)
+	CubeFaceF CubeFace = 2 // Front (Green)
+	CubeFaceB CubeFace = 3 // Back (Blue)
+	CubeFaceR CubeFace = 4 // Right (Red)
+	CubeFaceL CubeFace = 5 // Left (Orange)
 )
 
-func (f Face) String() string {
+func (f CubeFace) String() string {
 	switch f {
-	case U:
+	case CubeFaceU:
 		return "U"
-	case D:
+	case CubeFaceD:
 		return "D"
-	case F:
+	case CubeFaceF:
 		return "F"
-	case B:
+	case CubeFaceB:
 		return "B"
-	case R:
+	case CubeFaceR:
 		return "R"
-	case L:
+	case CubeFaceL:
 		return "L"
 	default:
 		return "?"
@@ -78,12 +78,12 @@ type Cube struct {
 	Facelets [6][9]Color
 }
 
-// New creates a solved cube with standard orientation:
+// NewCube creates a solved cube with standard orientation:
 // White on top, Green in front.
-func New() *Cube {
+func NewCube() *Cube {
 	c := &Cube{}
 	// Initialize each face with its solved color
-	for face := Face(0); face < 6; face++ {
+	for face := CubeFace(0); face < 6; face++ {
 		color := faceToSolvedColor(face)
 		for i := 0; i < 9; i++ {
 			c.Facelets[face][i] = color
@@ -93,19 +93,19 @@ func New() *Cube {
 }
 
 // faceToSolvedColor returns the color of a face when solved.
-func faceToSolvedColor(f Face) Color {
+func faceToSolvedColor(f CubeFace) Color {
 	switch f {
-	case U:
+	case CubeFaceU:
 		return White
-	case D:
+	case CubeFaceD:
 		return Yellow
-	case F:
+	case CubeFaceF:
 		return Green
-	case B:
+	case CubeFaceB:
 		return Blue
-	case R:
+	case CubeFaceR:
 		return Red
-	case L:
+	case CubeFaceL:
 		return Orange
 	default:
 		return White
@@ -125,7 +125,7 @@ func (c *Cube) Clone() *Cube {
 
 // IsSolved returns true if the cube is in the solved state.
 func (c *Cube) IsSolved() bool {
-	for face := Face(0); face < 6; face++ {
+	for face := CubeFace(0); face < 6; face++ {
 		expectedColor := faceToSolvedColor(face)
 		for i := 0; i < 9; i++ {
 			if c.Facelets[face][i] != expectedColor {
@@ -137,7 +137,7 @@ func (c *Cube) IsSolved() bool {
 }
 
 // rotateFaceCW rotates a face 90 degrees clockwise.
-func (c *Cube) rotateFaceCW(face Face) {
+func (c *Cube) rotateFaceCW(face CubeFace) {
 	f := &c.Facelets[face]
 	// Corner rotation: 0->2->8->6->0
 	// Edge rotation: 1->5->7->3->1
@@ -155,7 +155,7 @@ func (c *Cube) rotateFaceCW(face Face) {
 }
 
 // rotateFaceCCW rotates a face 90 degrees counter-clockwise.
-func (c *Cube) rotateFaceCCW(face Face) {
+func (c *Cube) rotateFaceCCW(face CubeFace) {
 	f := &c.Facelets[face]
 	// Corner rotation: 0->6->8->2->0
 	// Edge rotation: 1->3->7->5->1
@@ -172,9 +172,9 @@ func (c *Cube) rotateFaceCCW(face Face) {
 	f[3] = temp
 }
 
-// Move applies a move to the cube.
+// MoveFace applies a move to the cube using CubeFace.
 // turn: 1 = CW, -1 = CCW, 2 = 180 degrees
-func (c *Cube) Move(face Face, turn int) {
+func (c *Cube) MoveFace(face CubeFace, turn int) {
 	switch turn {
 	case 1: // CW
 		c.moveCW(face)
@@ -187,75 +187,75 @@ func (c *Cube) Move(face Face, turn int) {
 }
 
 // moveCW applies a clockwise move.
-func (c *Cube) moveCW(face Face) {
+func (c *Cube) moveCW(face CubeFace) {
 	c.rotateFaceCW(face)
 	c.cycleEdgesCW(face)
 }
 
 // moveCCW applies a counter-clockwise move.
-func (c *Cube) moveCCW(face Face) {
+func (c *Cube) moveCCW(face CubeFace) {
 	c.rotateFaceCCW(face)
 	c.cycleEdgesCCW(face)
 }
 
 // cycleEdgesCW cycles the edge facelets around a face (clockwise).
-func (c *Cube) cycleEdgesCW(face Face) {
+func (c *Cube) cycleEdgesCW(face CubeFace) {
 	// Each face affects 4 adjacent faces' edges
 	// The indices depend on which face is being rotated
 	switch face {
-	case U:
+	case CubeFaceU:
 		// U affects F, L, B, R top rows
 		c.cycle4(
-			[3]int{int(F), 0, 1}, [3]int{int(F), 1, 1}, [3]int{int(F), 2, 1}, // F top: 0,1,2
-			[3]int{int(L), 0, 1}, [3]int{int(L), 1, 1}, [3]int{int(L), 2, 1}, // L top: 0,1,2
-			[3]int{int(B), 0, 1}, [3]int{int(B), 1, 1}, [3]int{int(B), 2, 1}, // B top: 0,1,2
-			[3]int{int(R), 0, 1}, [3]int{int(R), 1, 1}, [3]int{int(R), 2, 1}, // R top: 0,1,2
+			[3]int{int(CubeFaceF), 0, 1}, [3]int{int(CubeFaceF), 1, 1}, [3]int{int(CubeFaceF), 2, 1}, // F top: 0,1,2
+			[3]int{int(CubeFaceL), 0, 1}, [3]int{int(CubeFaceL), 1, 1}, [3]int{int(CubeFaceL), 2, 1}, // L top: 0,1,2
+			[3]int{int(CubeFaceB), 0, 1}, [3]int{int(CubeFaceB), 1, 1}, [3]int{int(CubeFaceB), 2, 1}, // B top: 0,1,2
+			[3]int{int(CubeFaceR), 0, 1}, [3]int{int(CubeFaceR), 1, 1}, [3]int{int(CubeFaceR), 2, 1}, // R top: 0,1,2
 		)
-	case D:
+	case CubeFaceD:
 		// D affects F, R, B, L bottom rows (opposite direction)
 		c.cycle4(
-			[3]int{int(F), 6, 1}, [3]int{int(F), 7, 1}, [3]int{int(F), 8, 1},
-			[3]int{int(R), 6, 1}, [3]int{int(R), 7, 1}, [3]int{int(R), 8, 1},
-			[3]int{int(B), 6, 1}, [3]int{int(B), 7, 1}, [3]int{int(B), 8, 1},
-			[3]int{int(L), 6, 1}, [3]int{int(L), 7, 1}, [3]int{int(L), 8, 1},
+			[3]int{int(CubeFaceF), 6, 1}, [3]int{int(CubeFaceF), 7, 1}, [3]int{int(CubeFaceF), 8, 1},
+			[3]int{int(CubeFaceR), 6, 1}, [3]int{int(CubeFaceR), 7, 1}, [3]int{int(CubeFaceR), 8, 1},
+			[3]int{int(CubeFaceB), 6, 1}, [3]int{int(CubeFaceB), 7, 1}, [3]int{int(CubeFaceB), 8, 1},
+			[3]int{int(CubeFaceL), 6, 1}, [3]int{int(CubeFaceL), 7, 1}, [3]int{int(CubeFaceL), 8, 1},
 		)
-	case F:
+	case CubeFaceF:
 		// F affects U bottom, R left, D top, L right
 		c.cycle4Edge(
-			int(U), []int{6, 7, 8},
-			int(R), []int{0, 3, 6},
-			int(D), []int{2, 1, 0},
-			int(L), []int{8, 5, 2},
+			int(CubeFaceU), []int{6, 7, 8},
+			int(CubeFaceR), []int{0, 3, 6},
+			int(CubeFaceD), []int{2, 1, 0},
+			int(CubeFaceL), []int{8, 5, 2},
 		)
-	case B:
+	case CubeFaceB:
 		// B affects U top, L left, D bottom, R right
 		c.cycle4Edge(
-			int(U), []int{2, 1, 0},
-			int(L), []int{0, 3, 6},
-			int(D), []int{6, 7, 8},
-			int(R), []int{8, 5, 2},
+			int(CubeFaceU), []int{2, 1, 0},
+			int(CubeFaceL), []int{0, 3, 6},
+			int(CubeFaceD), []int{6, 7, 8},
+			int(CubeFaceR), []int{8, 5, 2},
 		)
-	case R:
+	case CubeFaceR:
 		// R affects U right, B left, D right, F right
 		c.cycle4Edge(
-			int(U), []int{2, 5, 8},
-			int(B), []int{6, 3, 0},
-			int(D), []int{2, 5, 8},
-			int(F), []int{2, 5, 8},
+			int(CubeFaceU), []int{2, 5, 8},
+			int(CubeFaceB), []int{6, 3, 0},
+			int(CubeFaceD), []int{2, 5, 8},
+			int(CubeFaceF), []int{2, 5, 8},
 		)
-	case L:
+	case CubeFaceL:
 		// L affects U left, F left, D left, B right
 		c.cycle4Edge(
-			int(U), []int{0, 3, 6},
-			int(F), []int{0, 3, 6},
-			int(D), []int{0, 3, 6},
-			int(B), []int{8, 5, 2},
+			int(CubeFaceU), []int{0, 3, 6},
+			int(CubeFaceF), []int{0, 3, 6},
+			int(CubeFaceD), []int{0, 3, 6},
+			int(CubeFaceB), []int{8, 5, 2},
 		)
 	}
 }
 
 // cycleEdgesCCW cycles the edge facelets around a face (counter-clockwise).
-func (c *Cube) cycleEdgesCCW(face Face) {
+func (c *Cube) cycleEdgesCCW(face CubeFace) {
 	// CCW is just CW three times, or we can reverse the cycle
 	c.cycleEdgesCW(face)
 	c.cycleEdgesCW(face)
@@ -328,14 +328,14 @@ func (c *Cube) String() string {
 	for row := 0; row < 3; row++ {
 		result += "      "
 		for col := 0; col < 3; col++ {
-			result += c.Facelets[U][row*3+col].String() + " "
+			result += c.Facelets[CubeFaceU][row*3+col].String() + " "
 		}
 		result += "\n"
 	}
 
 	// L, F, R, B faces (side by side)
 	for row := 0; row < 3; row++ {
-		for _, face := range []Face{L, F, R, B} {
+		for _, face := range []CubeFace{CubeFaceL, CubeFaceF, CubeFaceR, CubeFaceB} {
 			for col := 0; col < 3; col++ {
 				result += c.Facelets[face][row*3+col].String() + " "
 			}
@@ -347,7 +347,7 @@ func (c *Cube) String() string {
 	for row := 0; row < 3; row++ {
 		result += "      "
 		for col := 0; col < 3; col++ {
-			result += c.Facelets[D][row*3+col].String() + " "
+			result += c.Facelets[CubeFaceD][row*3+col].String() + " "
 		}
 		result += "\n"
 	}
@@ -358,4 +358,38 @@ func (c *Cube) String() string {
 // Debug returns a simple debug string.
 func (c *Cube) Debug() string {
 	return fmt.Sprintf("Solved: %v", c.IsSolved())
+}
+
+// ApplyMove applies a Move to the cube.
+func (c *Cube) ApplyMove(m Move) {
+	face := moveFaceToCubeFace(m.Face)
+	turn := int(m.Turn)
+	c.MoveFace(face, turn)
+}
+
+// ApplyMoves applies a sequence of moves to the cube.
+func (c *Cube) ApplyMoves(moves []Move) {
+	for _, m := range moves {
+		c.ApplyMove(m)
+	}
+}
+
+// moveFaceToCubeFace converts Face to CubeFace.
+func moveFaceToCubeFace(f Face) CubeFace {
+	switch f {
+	case FaceU:
+		return CubeFaceU
+	case FaceD:
+		return CubeFaceD
+	case FaceF:
+		return CubeFaceF
+	case FaceB:
+		return CubeFaceB
+	case FaceR:
+		return CubeFaceR
+	case FaceL:
+		return CubeFaceL
+	default:
+		return CubeFaceU
+	}
 }

@@ -1,13 +1,13 @@
 package analysis
 
 import (
-	"github.com/seamusw/gocube/pkg/types"
+	"github.com/SeamusWaldron/gocube"
 )
 
 // Tool represents a known algorithm/tool for the final phase.
 type Tool struct {
 	Name     string
-	Sequence []types.Move
+	Sequence []gocube.Move
 }
 
 // RHS (Right Hand Sune) variants - for corner orientation
@@ -15,56 +15,56 @@ var (
 	// RHS Forward: R U R' U R U2 R'
 	RHSForward = Tool{
 		Name: "RHS Forward",
-		Sequence: []types.Move{
-			{Face: types.FaceR, Turn: types.TurnCW},
-			{Face: types.FaceU, Turn: types.TurnCW},
-			{Face: types.FaceR, Turn: types.TurnCCW},
-			{Face: types.FaceU, Turn: types.TurnCW},
-			{Face: types.FaceR, Turn: types.TurnCW},
-			{Face: types.FaceU, Turn: types.Turn180},
-			{Face: types.FaceR, Turn: types.TurnCCW},
+		Sequence: []gocube.Move{
+			{Face: gocube.FaceR, Turn: gocube.TurnCW},
+			{Face: gocube.FaceU, Turn: gocube.TurnCW},
+			{Face: gocube.FaceR, Turn: gocube.TurnCCW},
+			{Face: gocube.FaceU, Turn: gocube.TurnCW},
+			{Face: gocube.FaceR, Turn: gocube.TurnCW},
+			{Face: gocube.FaceU, Turn: gocube.Turn180},
+			{Face: gocube.FaceR, Turn: gocube.TurnCCW},
 		},
 	}
 
 	// RHS Reverse: R U2 R' U' R U' R'
 	RHSReverse = Tool{
 		Name: "RHS Reverse",
-		Sequence: []types.Move{
-			{Face: types.FaceR, Turn: types.TurnCW},
-			{Face: types.FaceU, Turn: types.Turn180},
-			{Face: types.FaceR, Turn: types.TurnCCW},
-			{Face: types.FaceU, Turn: types.TurnCCW},
-			{Face: types.FaceR, Turn: types.TurnCW},
-			{Face: types.FaceU, Turn: types.TurnCCW},
-			{Face: types.FaceR, Turn: types.TurnCCW},
+		Sequence: []gocube.Move{
+			{Face: gocube.FaceR, Turn: gocube.TurnCW},
+			{Face: gocube.FaceU, Turn: gocube.Turn180},
+			{Face: gocube.FaceR, Turn: gocube.TurnCCW},
+			{Face: gocube.FaceU, Turn: gocube.TurnCCW},
+			{Face: gocube.FaceR, Turn: gocube.TurnCW},
+			{Face: gocube.FaceU, Turn: gocube.TurnCCW},
+			{Face: gocube.FaceR, Turn: gocube.TurnCCW},
 		},
 	}
 
 	// LHS Forward: L' U' L U' L' U2 L
 	LHSForward = Tool{
 		Name: "LHS Forward",
-		Sequence: []types.Move{
-			{Face: types.FaceL, Turn: types.TurnCCW},
-			{Face: types.FaceU, Turn: types.TurnCCW},
-			{Face: types.FaceL, Turn: types.TurnCW},
-			{Face: types.FaceU, Turn: types.TurnCCW},
-			{Face: types.FaceL, Turn: types.TurnCCW},
-			{Face: types.FaceU, Turn: types.Turn180},
-			{Face: types.FaceL, Turn: types.TurnCW},
+		Sequence: []gocube.Move{
+			{Face: gocube.FaceL, Turn: gocube.TurnCCW},
+			{Face: gocube.FaceU, Turn: gocube.TurnCCW},
+			{Face: gocube.FaceL, Turn: gocube.TurnCW},
+			{Face: gocube.FaceU, Turn: gocube.TurnCCW},
+			{Face: gocube.FaceL, Turn: gocube.TurnCCW},
+			{Face: gocube.FaceU, Turn: gocube.Turn180},
+			{Face: gocube.FaceL, Turn: gocube.TurnCW},
 		},
 	}
 
 	// LHS Reverse: L' U2 L U L' U L
 	LHSReverse = Tool{
 		Name: "LHS Reverse",
-		Sequence: []types.Move{
-			{Face: types.FaceL, Turn: types.TurnCCW},
-			{Face: types.FaceU, Turn: types.Turn180},
-			{Face: types.FaceL, Turn: types.TurnCW},
-			{Face: types.FaceU, Turn: types.TurnCW},
-			{Face: types.FaceL, Turn: types.TurnCCW},
-			{Face: types.FaceU, Turn: types.TurnCW},
-			{Face: types.FaceL, Turn: types.TurnCW},
+		Sequence: []gocube.Move{
+			{Face: gocube.FaceL, Turn: gocube.TurnCCW},
+			{Face: gocube.FaceU, Turn: gocube.Turn180},
+			{Face: gocube.FaceL, Turn: gocube.TurnCW},
+			{Face: gocube.FaceU, Turn: gocube.TurnCW},
+			{Face: gocube.FaceL, Turn: gocube.TurnCCW},
+			{Face: gocube.FaceU, Turn: gocube.TurnCW},
+			{Face: gocube.FaceL, Turn: gocube.TurnCW},
 		},
 	}
 )
@@ -97,7 +97,7 @@ type FinalPhaseReport struct {
 }
 
 // AnalyzeFinalPhase analyzes the final phase (bottom_orient) of a solve.
-func AnalyzeFinalPhase(moves []types.Move) *FinalPhaseReport {
+func AnalyzeFinalPhase(moves []gocube.Move) *FinalPhaseReport {
 	report := &FinalPhaseReport{
 		FinalPhaseMoveCount: len(moves),
 		ToolMatches:         []ToolMatch{},
@@ -193,7 +193,7 @@ func AnalyzeFinalPhase(moves []types.Move) *FinalPhaseReport {
 }
 
 // matchesTool checks if the move sequence starting at index matches the tool.
-func matchesTool(moves []types.Move, startIdx int, tool []types.Move) bool {
+func matchesTool(moves []gocube.Move, startIdx int, tool []gocube.Move) bool {
 	if startIdx+len(tool) > len(moves) {
 		return false
 	}
@@ -209,7 +209,7 @@ func matchesTool(moves []types.Move, startIdx int, tool []types.Move) bool {
 }
 
 // DetectToolVariants detects tools with minor variations (e.g., setup moves).
-func DetectToolVariants(moves []types.Move) []ToolMatch {
+func DetectToolVariants(moves []gocube.Move) []ToolMatch {
 	var matches []ToolMatch
 
 	// Look for partial matches or variations

@@ -3,7 +3,7 @@ package analysis
 import (
 	"sort"
 
-	"github.com/seamusw/gocube/pkg/types"
+	"github.com/SeamusWaldron/gocube"
 )
 
 // NGram represents a repeated move sequence.
@@ -101,7 +101,7 @@ type ngramEntry struct {
 }
 
 // MineNGrams finds the top-K most frequent n-grams for each n in [minN, maxN].
-func MineNGrams(moves []types.Move, minN, maxN, topK int) *NGramReport {
+func MineNGrams(moves []gocube.Move, minN, maxN, topK int) *NGramReport {
 	report := &NGramReport{
 		TopNGrams: make(map[int][]NGram),
 	}
@@ -128,7 +128,7 @@ func MineNGrams(moves []types.Move, minN, maxN, topK int) *NGramReport {
 }
 
 // mineNGramsForN mines n-grams of a specific length.
-func mineNGramsForN(tokens []uint8, moves []types.Move, n, topK int) []NGram {
+func mineNGramsForN(tokens []uint8, moves []gocube.Move, n, topK int) []NGram {
 	if len(tokens) < n {
 		return nil
 	}
@@ -200,7 +200,7 @@ func mineNGramsForN(tokens []uint8, moves []types.Move, n, topK int) []NGram {
 	for i, entry := range entries {
 		sequence := make([]string, len(entry.tokens))
 		for j, token := range entry.tokens {
-			move := types.MoveFromToken(token)
+			move := gocube.MoveFromToken(token)
 			sequence[j] = move.Notation()
 		}
 

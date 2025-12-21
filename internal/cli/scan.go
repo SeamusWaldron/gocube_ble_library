@@ -5,15 +5,15 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/seamusw/gocube/internal/ble"
+	"github.com/SeamusWaldron/gocube"
 )
 
 // ScanForGoCube scans for GoCube devices using the same logic everywhere.
 // It performs a single 5-second scan which is sufficient for macOS BLE discovery.
-func ScanForGoCube() (*ble.Client, []ble.ScanResult, error) {
+func ScanForGoCube() (*gocube.Client, []gocube.ScanResult, error) {
 	fmt.Println("Scanning for GoCube devices...")
 
-	client, err := ble.NewClient()
+	client, err := gocube.NewClient()
 	if err != nil {
 		return nil, nil, fmt.Errorf("BLE not available: %w", err)
 	}
@@ -36,15 +36,15 @@ func ScanForGoCube() (*ble.Client, []ble.ScanResult, error) {
 
 // ScanForGoCubeWithRetry scans for GoCube devices with retries.
 // Uses the same 5-second scan as status, with up to maxAttempts retries.
-func ScanForGoCubeWithRetry(maxAttempts int) (*ble.Client, []ble.ScanResult, error) {
-	var client *ble.Client
-	var results []ble.ScanResult
+func ScanForGoCubeWithRetry(maxAttempts int) (*gocube.Client, []gocube.ScanResult, error) {
+	var client *gocube.Client
+	var results []gocube.ScanResult
 	var err error
 
 	fmt.Println("Scanning for GoCube devices...")
 
 	for attempt := 1; attempt <= maxAttempts; attempt++ {
-		client, err = ble.NewClient()
+		client, err = gocube.NewClient()
 		if err != nil {
 			return nil, nil, fmt.Errorf("BLE not available: %w", err)
 		}

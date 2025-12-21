@@ -4,7 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 
-	"github.com/seamusw/gocube/pkg/types"
+	"github.com/SeamusWaldron/gocube"
 )
 
 // MoveRecord represents a move in the database.
@@ -30,7 +30,7 @@ func NewMoveRepository(db *DB) *MoveRepository {
 }
 
 // Create creates a new move and returns its ID.
-func (r *MoveRepository) Create(solveID string, moveIndex int, tsMs int64, move types.Move, sourceEventID *int64) (int64, error) {
+func (r *MoveRepository) Create(solveID string, moveIndex int, tsMs int64, move gocube.Move, sourceEventID *int64) (int64, error) {
 	result, err := r.db.Exec(`
 		INSERT INTO moves (solve_id, move_index, ts_ms, face, turn, notation, source_event_id)
 		VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -49,7 +49,7 @@ func (r *MoveRepository) Create(solveID string, moveIndex int, tsMs int64, move 
 }
 
 // CreateBatch creates multiple moves in a single transaction.
-func (r *MoveRepository) CreateBatch(solveID string, moves []types.Move, startIndex int, sourceEventID *int64) error {
+func (r *MoveRepository) CreateBatch(solveID string, moves []gocube.Move, startIndex int, sourceEventID *int64) error {
 	return r.db.Transaction(func(tx *sql.Tx) error {
 		for i, move := range moves {
 			_, err := tx.Exec(`
@@ -142,13 +142,13 @@ func (r *MoveRepository) Count(solveID string) (int, error) {
 	return count, nil
 }
 
-// ToTypes converts MoveRecords to types.Move slice.
-func ToTypes(records []MoveRecord) []types.Move {
-	moves := make([]types.Move, len(records))
+// ToMoves converts MoveRecords to gocube.Move slice.
+func ToMoves(records []MoveRecord) []gocube.Move {
+	moves := make([]gocube.Move, len(records))
 	for i, r := range records {
-		moves[i] = types.Move{
-			Face:      types.Face(r.Face),
-			Turn:      types.Turn(r.Turn),
+		moves[i] = gocube.Move{
+			Face:      gocube.Face(r.Face),
+			Turn:      gocube.Turn(r.Turn),
 			Timestamp: r.TsMs,
 		}
 	}

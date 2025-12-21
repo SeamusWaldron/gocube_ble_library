@@ -10,10 +10,10 @@ import (
 
 // RotationEvent represents a single face rotation from the cube.
 type RotationEvent struct {
-	FaceCode          byte `json:"face_code"`           // Raw face+direction code (0x00-0x0B)
-	CenterOrientation byte `json:"center_orientation"`  // Center piece orientation
-	Clockwise         bool `json:"clockwise"`           // Direction of rotation
-	Color             string `json:"color"`             // Color name (blue, green, white, yellow, red, orange)
+	FaceCode          byte   `json:"face_code"`          // Raw face+direction code (0x00-0x0B)
+	CenterOrientation byte   `json:"center_orientation"` // Center piece orientation
+	Clockwise         bool   `json:"clockwise"`          // Direction of rotation
+	Color             string `json:"color"`              // Color name (blue, green, white, yellow, red, orange)
 }
 
 // BatteryEvent represents a battery level notification.

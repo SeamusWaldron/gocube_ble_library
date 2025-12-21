@@ -11,9 +11,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/cobra"
 
-	"github.com/seamusw/gocube/internal/cube"
-	"github.com/seamusw/gocube/internal/gocube"
-	"github.com/seamusw/gocube/pkg/types"
+	"github.com/SeamusWaldron/gocube"
 )
 
 var replayCmd = &cobra.Command{
@@ -123,8 +121,8 @@ type replayModel struct {
 	speed        float64
 	stepMode     bool
 	paused       bool
-	tracker      *cube.Tracker
-	moves        []types.Move
+	tracker      *gocube.Tracker
+	moves        []gocube.Move
 	currentPhase string
 	detectedPhase string
 	startTime    time.Time
@@ -140,8 +138,8 @@ func newReplayModel(log *SolveLog, speed float64, stepMode bool) *replayModel {
 		speed:     speed,
 		stepMode:  stepMode,
 		paused:    stepMode, // Start paused in step mode
-		tracker:   cube.NewTracker(),
-		moves:     make([]types.Move, 0),
+		tracker:   gocube.NewTracker(),
+		moves:     make([]gocube.Move, 0),
 		startTime: time.Now(),
 	}
 }

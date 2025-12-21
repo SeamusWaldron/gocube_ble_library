@@ -1,4 +1,3 @@
-// Package gocube implements the GoCube BLE protocol decoding.
 package gocube
 
 import (
@@ -16,28 +15,28 @@ const (
 
 // Message type constants
 const (
-	MsgTypeRotation    byte = 0x01
-	MsgTypeState       byte = 0x02
-	MsgTypeOrientation byte = 0x03
-	MsgTypeBattery     byte = 0x05
+	MsgTypeRotation     byte = 0x01
+	MsgTypeState        byte = 0x02
+	MsgTypeOrientation  byte = 0x03
+	MsgTypeBattery      byte = 0x05
 	MsgTypeOfflineStats byte = 0x07
-	MsgTypeCubeType    byte = 0x08
+	MsgTypeCubeType     byte = 0x08
 )
 
 // Command codes for writing to RX characteristic
 const (
-	CmdRequestBattery     byte = 0x32
-	CmdRequestState       byte = 0x33
-	CmdReboot             byte = 0x34
-	CmdResetSolved        byte = 0x35
-	CmdDisableOrientation byte = 0x37
-	CmdEnableOrientation  byte = 0x38
-	CmdRequestOfflineStats byte = 0x39
-	CmdFlashBacklight     byte = 0x41
-	CmdToggleAnimatedBL   byte = 0x42
-	CmdSlowFlashBacklight byte = 0x43
-	CmdToggleBacklight    byte = 0x44
-	CmdRequestCubeType    byte = 0x56
+	CmdRequestBattery       byte = 0x32
+	CmdRequestState         byte = 0x33
+	CmdReboot               byte = 0x34
+	CmdResetSolved          byte = 0x35
+	CmdDisableOrientation   byte = 0x37
+	CmdEnableOrientation    byte = 0x38
+	CmdRequestOfflineStats  byte = 0x39
+	CmdFlashBacklight       byte = 0x41
+	CmdToggleAnimatedBL     byte = 0x42
+	CmdSlowFlashBacklight   byte = 0x43
+	CmdToggleBacklight      byte = 0x44
+	CmdRequestCubeType      byte = 0x56
 	CmdCalibrateOrientation byte = 0x57
 )
 
@@ -48,20 +47,20 @@ const (
 	FrameSuffix2 byte = 0x0A // LF
 )
 
-// Errors
+// Protocol errors
 var (
-	ErrInvalidPrefix   = errors.New("invalid message prefix")
-	ErrInvalidSuffix   = errors.New("invalid message suffix")
-	ErrInvalidChecksum = errors.New("invalid checksum")
-	ErrMessageTooShort = errors.New("message too short")
-	ErrInvalidLength   = errors.New("invalid message length")
+	ErrInvalidPrefix   = errors.New("gocube: invalid message prefix")
+	ErrInvalidSuffix   = errors.New("gocube: invalid message suffix")
+	ErrInvalidChecksum = errors.New("gocube: invalid checksum")
+	ErrMessageTooShort = errors.New("gocube: message too short")
+	ErrInvalidLength   = errors.New("gocube: invalid message length")
 )
 
 // Message represents a parsed GoCube BLE message.
 type Message struct {
-	Type       byte   // Message type identifier
-	Payload    []byte // Decoded payload (without frame overhead)
-	RawBase64  string // Base64 encoded raw bytes for storage
+	Type      byte   // Message type identifier
+	Payload   []byte // Decoded payload (without frame overhead)
+	RawBase64 string // Base64 encoded raw bytes for storage
 }
 
 // ParseMessage parses a raw BLE notification into a Message.

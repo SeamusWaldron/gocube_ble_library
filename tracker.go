@@ -1,40 +1,4 @@
-package cube
-
-import "github.com/seamusw/gocube/pkg/types"
-
-// ApplyMove applies a types.Move to the cube.
-func (c *Cube) ApplyMove(m types.Move) {
-	face := typesFaceToFace(m.Face)
-	turn := int(m.Turn)
-	c.Move(face, turn)
-}
-
-// ApplyMoves applies a sequence of moves to the cube.
-func (c *Cube) ApplyMoves(moves []types.Move) {
-	for _, m := range moves {
-		c.ApplyMove(m)
-	}
-}
-
-// typesFaceToFace converts types.Face to cube.Face.
-func typesFaceToFace(f types.Face) Face {
-	switch f {
-	case types.FaceU:
-		return U
-	case types.FaceD:
-		return D
-	case types.FaceF:
-		return F
-	case types.FaceB:
-		return B
-	case types.FaceR:
-		return R
-	case types.FaceL:
-		return L
-	default:
-		return U
-	}
-}
+package gocube
 
 // Tracker wraps a Cube and provides state change detection.
 type Tracker struct {
@@ -47,7 +11,7 @@ type Tracker struct {
 // NewTracker creates a new cube tracker starting from a solved state.
 func NewTracker() *Tracker {
 	return &Tracker{
-		cube:      New(),
+		cube:      NewCube(),
 		lastPhase: PhaseSolved,
 	}
 }
@@ -59,19 +23,19 @@ func (t *Tracker) SetPhaseCallback(cb func(phase DetectedPhase, phaseKey string)
 
 // Reset resets the tracker to a solved cube state.
 func (t *Tracker) Reset() {
-	t.cube = New()
+	t.cube = NewCube()
 	t.lastPhase = PhaseSolved
 	t.highestPhase = PhaseScrambled // Start at lowest phase
 }
 
 // ApplyMove applies a move and checks for phase transitions.
-func (t *Tracker) ApplyMove(m types.Move) {
+func (t *Tracker) ApplyMove(m Move) {
 	t.cube.ApplyMove(m)
 	t.checkPhaseTransition()
 }
 
 // ApplyMoves applies multiple moves.
-func (t *Tracker) ApplyMoves(moves []types.Move) {
+func (t *Tracker) ApplyMoves(moves []Move) {
 	for _, m := range moves {
 		t.ApplyMove(m)
 	}

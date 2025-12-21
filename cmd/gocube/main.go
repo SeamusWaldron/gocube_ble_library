@@ -2,7 +2,7 @@
 package main
 
 import (
-	"github.com/seamusw/gocube/internal/cli"
+	"github.com/SeamusWaldron/gocube/internal/cli"
 )
 
 func main() {

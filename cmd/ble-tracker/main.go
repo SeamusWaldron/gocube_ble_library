@@ -10,16 +10,14 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/seamusw/gocube/internal/ble"
-	"github.com/seamusw/gocube/internal/cube"
-	"github.com/seamusw/gocube/internal/gocube"
+	"github.com/SeamusWaldron/gocube"
 )
 
 func main() {
 	fmt.Println("GoCube Tracker Tool - Shows all messages with cube state tracking")
 	fmt.Println("==================================================================")
 
-	client, err := ble.NewClient()
+	client, err := gocube.NewClient()
 	if err != nil {
 		fmt.Printf("Failed to create BLE client: %v\n", err)
 		os.Exit(1)
@@ -29,8 +27,8 @@ func main() {
 	defer cancel()
 
 	// Create cube tracker
-	tracker := cube.NewTracker()
-	tracker.SetPhaseCallback(func(phase cube.DetectedPhase, phaseKey string) {
+	tracker := gocube.NewTracker()
+	tracker.SetPhaseCallback(func(phase gocube.DetectedPhase, phaseKey string) {
 		fmt.Printf("\n>>> PHASE CHANGE: %s <<<\n\n", phaseKey)
 	})
 
@@ -48,8 +46,8 @@ func main() {
 	fmt.Printf("Connected to: %s\n", client.DeviceName())
 	fmt.Println("\nMake moves on the cube - you'll see rotation messages and cube state.")
 	fmt.Println("Rotate the cube (without making moves) to see orientation messages.")
-	fmt.Println("Press Ctrl+C to exit.\n")
-	fmt.Println("Cube starts SOLVED. Make moves to see phase detection in action.\n")
+	fmt.Println("Press Ctrl+C to exit.")
+	fmt.Println("Cube starts SOLVED. Make moves to see phase detection in action.")
 	fmt.Println(strings.Repeat("-", 70))
 
 	// Wait for interrupt
@@ -61,7 +59,7 @@ func main() {
 	client.Disconnect()
 }
 
-func handleMessage(msg *gocube.Message, tracker *cube.Tracker) {
+func handleMessage(msg *gocube.Message, tracker *gocube.Tracker) {
 	timestamp := time.Now().Format("15:04:05.000")
 
 	switch msg.Type {

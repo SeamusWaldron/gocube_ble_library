@@ -1,33 +1,31 @@
-package cube
+package gocube
 
 import (
 	"testing"
-
-	"github.com/seamusw/gocube/pkg/types"
 )
 
 func TestNewCubeIsSolved(t *testing.T) {
-	c := New()
+	c := NewCube()
 	if !c.IsSolved() {
 		t.Error("New cube should be solved")
 	}
 }
 
 func TestSingleMoveBreaksSolved(t *testing.T) {
-	c := New()
-	c.Move(R, 1) // R
+	c := NewCube()
+	c.MoveFace(CubeFaceR, 1) // R
 	if c.IsSolved() {
 		t.Error("Cube should not be solved after R move")
 	}
 }
 
 func TestRR_ReturnsToSolved(t *testing.T) {
-	c := New()
+	c := NewCube()
 	// R R R R = identity
-	c.Move(R, 1)
-	c.Move(R, 1)
-	c.Move(R, 1)
-	c.Move(R, 1)
+	c.MoveFace(CubeFaceR, 1)
+	c.MoveFace(CubeFaceR, 1)
+	c.MoveFace(CubeFaceR, 1)
+	c.MoveFace(CubeFaceR, 1)
 	if !c.IsSolved() {
 		t.Error("R R R R should return to solved")
 		t.Log(c.String())
@@ -35,9 +33,9 @@ func TestRR_ReturnsToSolved(t *testing.T) {
 }
 
 func TestR2R2_ReturnsToSolved(t *testing.T) {
-	c := New()
-	c.Move(R, 2)
-	c.Move(R, 2)
+	c := NewCube()
+	c.MoveFace(CubeFaceR, 2)
+	c.MoveFace(CubeFaceR, 2)
 	if !c.IsSolved() {
 		t.Error("R2 R2 should return to solved")
 		t.Log(c.String())
@@ -45,13 +43,13 @@ func TestR2R2_ReturnsToSolved(t *testing.T) {
 }
 
 func TestRR_ReturnsToSolved_AllFaces(t *testing.T) {
-	faces := []Face{U, D, F, B, R, L}
+	faces := []CubeFace{CubeFaceU, CubeFaceD, CubeFaceF, CubeFaceB, CubeFaceR, CubeFaceL}
 	for _, face := range faces {
-		c := New()
-		c.Move(face, 1)
-		c.Move(face, 1)
-		c.Move(face, 1)
-		c.Move(face, 1)
+		c := NewCube()
+		c.MoveFace(face, 1)
+		c.MoveFace(face, 1)
+		c.MoveFace(face, 1)
+		c.MoveFace(face, 1)
 		if !c.IsSolved() {
 			t.Errorf("%v x 4 should return to solved", face)
 			t.Log(c.String())
@@ -61,12 +59,12 @@ func TestRR_ReturnsToSolved_AllFaces(t *testing.T) {
 
 func TestSexyMove_6Times_ReturnsToSolved(t *testing.T) {
 	// (R U R' U') x 6 = identity
-	c := New()
+	c := NewCube()
 	for i := 0; i < 6; i++ {
-		c.Move(R, 1)  // R
-		c.Move(U, 1)  // U
-		c.Move(R, -1) // R'
-		c.Move(U, -1) // U'
+		c.MoveFace(CubeFaceR, 1)  // R
+		c.MoveFace(CubeFaceU, 1)  // U
+		c.MoveFace(CubeFaceR, -1) // R'
+		c.MoveFace(CubeFaceU, -1) // U'
 	}
 	if !c.IsSolved() {
 		t.Error("Sexy move x 6 should return to solved")
@@ -75,13 +73,13 @@ func TestSexyMove_6Times_ReturnsToSolved(t *testing.T) {
 }
 
 func TestWhiteCrossDetection(t *testing.T) {
-	c := New()
+	c := NewCube()
 	if !c.IsWhiteCrossComplete() {
 		t.Error("Solved cube should have white cross complete")
 	}
 
 	// Break the cross with a single R move
-	c.Move(R, 1)
+	c.MoveFace(CubeFaceR, 1)
 	// R move affects U face edge at position 5 (right edge)
 	// After R, the white edge piece moves to F face
 	if c.IsWhiteCrossComplete() {
@@ -90,34 +88,34 @@ func TestWhiteCrossDetection(t *testing.T) {
 }
 
 func TestTopLayerDetection(t *testing.T) {
-	c := New()
+	c := NewCube()
 	if !c.IsTopLayerComplete() {
 		t.Error("Solved cube should have top layer complete")
 	}
 
-	c.Move(R, 1)
+	c.MoveFace(CubeFaceR, 1)
 	if c.IsTopLayerComplete() {
 		t.Error("Top layer should be broken after R move")
 	}
 }
 
 func TestMiddleLayerDetection(t *testing.T) {
-	c := New()
+	c := NewCube()
 	if !c.IsMiddleLayerComplete() {
 		t.Error("Solved cube should have middle layer complete")
 	}
 }
 
 func TestApplyTypesMove(t *testing.T) {
-	c := New()
-	move := types.Move{Face: types.FaceR, Turn: types.TurnCW}
+	c := NewCube()
+	move := Move{Face: FaceR, Turn: TurnCW}
 	c.ApplyMove(move)
 	if c.IsSolved() {
 		t.Error("Cube should not be solved after applying R move")
 	}
 
 	// Apply R' to undo
-	move2 := types.Move{Face: types.FaceR, Turn: types.TurnCCW}
+	move2 := Move{Face: FaceR, Turn: TurnCCW}
 	c.ApplyMove(move2)
 	if !c.IsSolved() {
 		t.Error("Cube should be solved after R R'")
@@ -126,13 +124,13 @@ func TestApplyTypesMove(t *testing.T) {
 }
 
 func TestPhaseDetection(t *testing.T) {
-	c := New()
+	c := NewCube()
 	phase := c.DetectPhase()
 	if phase != PhaseSolved {
 		t.Errorf("Solved cube should detect as PhaseSolved, got %v", phase)
 	}
 
-	c.Move(R, 1)
+	c.MoveFace(CubeFaceR, 1)
 	phase = c.DetectPhase()
 	if phase == PhaseSolved {
 		t.Error("Scrambled cube should not detect as solved")
@@ -145,7 +143,7 @@ func TestTrackerReset(t *testing.T) {
 		t.Error("New tracker should start solved")
 	}
 
-	tr.ApplyMove(types.Move{Face: types.FaceR, Turn: types.TurnCW})
+	tr.ApplyMove(Move{Face: FaceR, Turn: TurnCW})
 	if tr.IsSolved() {
 		t.Error("Tracker should not be solved after move")
 	}
@@ -159,20 +157,20 @@ func TestTrackerReset(t *testing.T) {
 func TestScrambleAndReverse(t *testing.T) {
 	// Scramble a cube with a sequence and then reverse it
 	// Verify that phases are detected correctly on the way back
-	c := New()
+	c := NewCube()
 
 	// Simple scramble
 	scramble := []struct {
-		face Face
+		face CubeFace
 		turn int
 	}{
-		{R, 1}, {U, 1}, {R, -1}, {U, -1},
-		{F, 1}, {D, 1}, {L, 2},
+		{CubeFaceR, 1}, {CubeFaceU, 1}, {CubeFaceR, -1}, {CubeFaceU, -1},
+		{CubeFaceF, 1}, {CubeFaceD, 1}, {CubeFaceL, 2},
 	}
 
 	// Apply scramble
 	for _, m := range scramble {
-		c.Move(m.face, m.turn)
+		c.MoveFace(m.face, m.turn)
 	}
 
 	if c.IsSolved() {
@@ -190,7 +188,7 @@ func TestScrambleAndReverse(t *testing.T) {
 		if m.turn == 2 {
 			reverseTurn = 2 // R2 reversed is R2
 		}
-		c.Move(m.face, reverseTurn)
+		c.MoveFace(m.face, reverseTurn)
 	}
 
 	if !c.IsSolved() {
@@ -201,7 +199,7 @@ func TestScrambleAndReverse(t *testing.T) {
 
 func TestPhaseTransitionsForward(t *testing.T) {
 	// Verify that each phase check works correctly
-	c := New()
+	c := NewCube()
 
 	// All phases should be complete on solved cube
 	t.Log("Testing solved cube phases:")
@@ -247,9 +245,9 @@ func TestTrackerPhaseCallback(t *testing.T) {
 	})
 
 	// Scramble the cube
-	tr.ApplyMove(types.Move{Face: types.FaceR, Turn: types.TurnCW})
-	tr.ApplyMove(types.Move{Face: types.FaceU, Turn: types.TurnCW})
-	tr.ApplyMove(types.Move{Face: types.FaceF, Turn: types.TurnCW})
+	tr.ApplyMove(Move{Face: FaceR, Turn: TurnCW})
+	tr.ApplyMove(Move{Face: FaceU, Turn: TurnCW})
+	tr.ApplyMove(Move{Face: FaceF, Turn: TurnCW})
 
 	t.Logf("After scramble: phase=%s, callbacks=%v", tr.CurrentPhaseKey(), phaseChanges)
 
@@ -259,9 +257,9 @@ func TestTrackerPhaseCallback(t *testing.T) {
 	}
 
 	// Now reverse to get back to solved
-	tr.ApplyMove(types.Move{Face: types.FaceF, Turn: types.TurnCCW})
-	tr.ApplyMove(types.Move{Face: types.FaceU, Turn: types.TurnCCW})
-	tr.ApplyMove(types.Move{Face: types.FaceR, Turn: types.TurnCCW})
+	tr.ApplyMove(Move{Face: FaceF, Turn: TurnCCW})
+	tr.ApplyMove(Move{Face: FaceU, Turn: TurnCCW})
+	tr.ApplyMove(Move{Face: FaceR, Turn: TurnCCW})
 
 	t.Logf("After reverse: phase=%s, callbacks=%v", tr.CurrentPhaseKey(), phaseChanges)
 

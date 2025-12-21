@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"math"
 
-	"github.com/seamusw/gocube/internal/storage"
+	"github.com/SeamusWaldron/gocube/internal/storage"
 )
 
 // PhaseDiagnostics contains diagnostic metrics for a phase.

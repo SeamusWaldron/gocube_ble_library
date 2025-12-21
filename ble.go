@@ -1,5 +1,4 @@
-// Package ble provides BLE connectivity for GoCube devices.
-package ble
+package gocube
 
 import (
 	"context"
@@ -10,22 +9,21 @@ import (
 	"time"
 
 	"tinygo.org/x/bluetooth"
-
-	"github.com/seamusw/gocube/internal/gocube"
 )
 
+// BLE connection errors
 var (
-	ErrNotConnected     = errors.New("not connected to device")
-	ErrAlreadyConnected = errors.New("already connected to a device")
-	ErrDeviceNotFound   = errors.New("device not found")
-	ErrTimeout          = errors.New("connection timeout")
+	ErrNotConnected     = errors.New("gocube: not connected to device")
+	ErrAlreadyConnected = errors.New("gocube: already connected to a device")
+	ErrDeviceNotFound   = errors.New("gocube: device not found")
+	ErrTimeout          = errors.New("gocube: connection timeout")
 )
 
 // GoCube BLE UUIDs
 var (
-	serviceUUID = bluetooth.NewUUID(mustParseUUID(gocube.ServiceUUID))
-	txCharUUID  = bluetooth.NewUUID(mustParseUUID(gocube.TxCharUUID))
-	rxCharUUID  = bluetooth.NewUUID(mustParseUUID(gocube.RxCharUUID))
+	serviceUUID = bluetooth.NewUUID(mustParseUUID(ServiceUUID))
+	txCharUUID  = bluetooth.NewUUID(mustParseUUID(TxCharUUID))
+	rxCharUUID  = bluetooth.NewUUID(mustParseUUID(RxCharUUID))
 )
 
 func mustParseUUID(s string) [16]byte {
@@ -57,14 +55,14 @@ type Client struct {
 	deviceUUID string
 	battery    int
 
-	onMessage    func(*gocube.Message)
+	onMessage    func(*Message)
 	onDisconnect func()
 
 	autoReconnect bool
 	reconnectStop chan struct{}
 }
 
-// NewClient creates a new BLE client.
+// NewClient creates a new BLE client for GoCube communication.
 func NewClient() (*Client, error) {
 	adapter := bluetooth.DefaultAdapter
 	if err := adapter.Enable(); err != nil {
@@ -78,7 +76,7 @@ func NewClient() (*Client, error) {
 }
 
 // SetMessageCallback sets the callback for incoming messages.
-func (c *Client) SetMessageCallback(cb func(*gocube.Message)) {
+func (c *Client) SetMessageCallback(cb func(*Message)) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.onMessage = cb
@@ -390,7 +388,7 @@ func (c *Client) SendCommand(cmd byte) error {
 		return ErrNotConnected
 	}
 
-	data := gocube.BuildCommand(cmd)
+	data := BuildCommand(cmd)
 	// Try WriteWithoutResponse first, fall back to regular Write
 	_, err := c.rxChar.WriteWithoutResponse(data)
 	if err != nil {
@@ -402,59 +400,59 @@ func (c *Client) SendCommand(cmd byte) error {
 
 // RequestBattery requests the battery level from the cube.
 func (c *Client) RequestBattery() error {
-	return c.SendCommand(gocube.CmdRequestBattery)
+	return c.SendCommand(CmdRequestBattery)
 }
 
 // RequestState requests the current cube state.
 func (c *Client) RequestState() error {
-	return c.SendCommand(gocube.CmdRequestState)
+	return c.SendCommand(CmdRequestState)
 }
 
 // FlashBacklight flashes the cube backlight three times.
 func (c *Client) FlashBacklight() error {
-	return c.SendCommand(gocube.CmdFlashBacklight)
+	return c.SendCommand(CmdFlashBacklight)
 }
 
 // SlowFlashBacklight slowly flashes the cube backlight three times.
 func (c *Client) SlowFlashBacklight() error {
-	return c.SendCommand(gocube.CmdSlowFlashBacklight)
+	return c.SendCommand(CmdSlowFlashBacklight)
 }
 
 // ToggleBacklight toggles the cube backlight on/off.
 func (c *Client) ToggleBacklight() error {
-	return c.SendCommand(gocube.CmdToggleBacklight)
+	return c.SendCommand(CmdToggleBacklight)
 }
 
 // ToggleAnimatedBacklight enables/disables animated backlight.
 func (c *Client) ToggleAnimatedBacklight() error {
-	return c.SendCommand(gocube.CmdToggleAnimatedBL)
+	return c.SendCommand(CmdToggleAnimatedBL)
 }
 
 // EnableOrientation enables orientation tracking on the cube.
 func (c *Client) EnableOrientation() error {
-	return c.SendCommand(gocube.CmdEnableOrientation)
+	return c.SendCommand(CmdEnableOrientation)
 }
 
 // DisableOrientation disables orientation tracking on the cube.
 func (c *Client) DisableOrientation() error {
-	return c.SendCommand(gocube.CmdDisableOrientation)
+	return c.SendCommand(CmdDisableOrientation)
 }
 
 // CalibrateOrientation calibrates the cube's orientation sensor.
 func (c *Client) CalibrateOrientation() error {
-	return c.SendCommand(gocube.CmdCalibrateOrientation)
+	return c.SendCommand(CmdCalibrateOrientation)
 }
 
 // handleNotification handles incoming BLE notifications.
 func (c *Client) handleNotification(data []byte) {
-	msg, err := gocube.ParseMessage(data)
+	msg, err := ParseMessage(data)
 	if err != nil {
 		return
 	}
 
 	// Handle battery updates internally
-	if msg.Type == gocube.MsgTypeBattery {
-		if battery, err := gocube.DecodeBattery(msg.Payload); err == nil {
+	if msg.Type == MsgTypeBattery {
+		if battery, err := DecodeBattery(msg.Payload); err == nil {
 			c.mu.Lock()
 			c.battery = battery.Level
 			c.mu.Unlock()

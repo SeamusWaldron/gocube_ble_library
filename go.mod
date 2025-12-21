@@ -1,4 +1,4 @@
-module github.com/seamusw/gocube
+module github.com/SeamusWaldron/gocube
 
 go 1.24.0
 

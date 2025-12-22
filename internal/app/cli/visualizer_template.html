@@ -1,0 +1,934 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GoCube Solve Visualiser</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <style>
+        body { margin: 0; background-color: #0f172a; color: white; overflow-x: hidden; font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
+        #canvas-container { width: 100%; height: 50vh; cursor: grab; position: relative; }
+        #canvas-container:active { cursor: grabbing; }
+        .phase-bar { height: 12px; transition: all 0.2s; position: relative; cursor: pointer; }
+        .phase-bar:hover { height: 16px; filter: brightness(1.2); }
+        .phase-bar.active { height: 20px; border: 2px solid white; }
+        .move-pill { font-family: monospace; }
+        .reversal { color: #f87171; text-decoration: underline; }
+        .orientation-marker {
+            position: absolute;
+            width: 0; height: 0;
+            border-left: 4px solid transparent;
+            border-right: 4px solid transparent;
+            border-bottom: 8px solid #a855f7;
+            transform: translateX(-4px);
+            top: -10px;
+            cursor: pointer;
+        }
+        .orientation-marker:hover { border-bottom-color: #c084fc; }
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #1e293b; }
+        ::-webkit-scrollbar-thumb { background: #475569; border-radius: 4px; }
+    </style>
+</head>
+<body class="bg-slate-900 select-none">
+
+    <!-- Header & Stats -->
+    <header class="p-4 bg-slate-800 border-b border-slate-700 flex justify-between items-center shadow-lg">
+        <div>
+            <h1 class="text-xl font-bold text-blue-400">GoCube <span class="text-white">Solve Visualiser</span></h1>
+            <p id="solve-id" class="text-xs text-slate-400 font-mono mt-1 opacity-50"></p>
+        </div>
+        <div class="flex gap-6">
+            <div class="text-center">
+                <div id="stat-solve-time" class="text-2xl font-bold text-green-400">--.-s</div>
+                <div class="text-[10px] uppercase text-slate-400 tracking-wider">Solve Time</div>
+            </div>
+            <div class="text-center">
+                <div id="stat-tps" class="text-xl font-bold">0.00</div>
+                <div class="text-[10px] uppercase text-slate-400 tracking-wider">Current TPS</div>
+            </div>
+            <div class="text-center">
+                <div id="stat-moves" class="text-xl font-bold">0</div>
+                <div class="text-[10px] uppercase text-slate-400 tracking-wider">Move Count</div>
+            </div>
+            <div class="text-center">
+                <div id="stat-orientation" class="text-sm font-bold text-purple-400">U/F</div>
+                <div class="text-[10px] uppercase text-slate-400 tracking-wider">Orientation</div>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-6xl mx-auto p-4 grid grid-cols-1 lg:grid-cols-3 gap-4 items-start">
+
+        <!-- Left Column: 3D Visualization -->
+        <div id="left-column" class="lg:col-span-2 space-y-4">
+            <div id="canvas-container" class="bg-slate-950 rounded-xl border border-slate-700 overflow-hidden">
+                <div id="phase-overlay" class="absolute top-4 left-4 bg-slate-900/80 px-3 py-1 rounded-full border border-blue-500/50 text-sm font-semibold pointer-events-none z-10">
+                    Waiting...
+                </div>
+                <button id="btn-reset-view" class="absolute bottom-4 right-4 bg-slate-800/80 hover:bg-slate-700 px-3 py-1 rounded text-[10px] uppercase font-bold tracking-widest border border-slate-600 z-10">
+                    Reset View
+                </button>
+            </div>
+
+            <!-- Timeline -->
+            <div class="bg-slate-800 p-4 rounded-xl border border-slate-700 shadow-xl">
+                <div class="flex justify-between text-xs mb-2 text-slate-400 font-mono">
+                    <span id="time-elapsed">00:00.0</span>
+                    <span id="time-total">00:00.0</span>
+                </div>
+
+                <div id="timeline-container" class="w-full flex items-center mb-4 rounded-full overflow-visible bg-slate-700 h-3 relative">
+                    <!-- Phases and orientation markers injected here -->
+                </div>
+
+                <!-- Controls -->
+                <div class="flex flex-wrap items-center justify-between gap-4">
+                    <div class="flex items-center gap-3">
+                        <button id="btn-play" class="bg-blue-600 hover:bg-blue-500 w-10 h-10 rounded-full flex items-center justify-center transition shadow-lg">
+                            <svg id="icon-play" class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                        </button>
+                        <button id="btn-skip-to-solve" class="text-xs bg-slate-700 hover:bg-slate-600 px-3 py-2 rounded font-semibold uppercase tracking-tight">
+                            Skip to Solve
+                        </button>
+                        <button id="btn-step" class="text-xs bg-slate-700 hover:bg-slate-600 px-3 py-2 rounded font-semibold uppercase tracking-tight" title="Step forward one move">
+                            Step →
+                        </button>
+                    </div>
+
+                    <div class="flex items-center gap-4">
+                        <!-- Mode toggles -->
+                        <div class="flex items-center gap-2">
+                            <button id="btn-lock-orientation" class="text-xs px-3 py-2 rounded font-semibold uppercase tracking-tight bg-slate-700 hover:bg-slate-600" title="Lock cube orientation (ignore physical rotation)">
+                                🔓 Orient
+                            </button>
+                            <button id="btn-sequential" class="text-xs px-3 py-2 rounded font-semibold uppercase tracking-tight bg-slate-700 hover:bg-slate-600" title="Sequential mode (no timing delays)">
+                                ⏱️ Realtime
+                            </button>
+                            <button id="btn-flip-y" class="text-xs px-3 py-2 rounded font-semibold uppercase tracking-tight bg-slate-700 hover:bg-slate-600" title="Flip orientation for 80s-style (white on top) solving">
+                                ↕️ Modern
+                            </button>
+                        </div>
+
+                        <!-- Speed controls -->
+                        <div class="flex items-center gap-2">
+                            <span class="text-[10px] text-slate-500 uppercase font-bold mr-1">Speed</span>
+                            <div id="speed-controls" class="flex bg-slate-900 rounded p-1">
+                                <button data-speed="0.5" class="px-2 py-1 text-xs rounded hover:bg-slate-700">0.5x</button>
+                                <button data-speed="1" class="px-2 py-1 text-xs rounded bg-blue-600">1x</button>
+                                <button data-speed="2" class="px-2 py-1 text-xs rounded hover:bg-slate-700">2x</button>
+                                <button data-speed="4" class="px-2 py-1 text-xs rounded hover:bg-slate-700">4x</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Column: Move Feed & Report -->
+        <div id="right-column" class="flex flex-col">
+            <!-- Tab buttons -->
+            <div class="flex bg-slate-800 rounded-lg p-1 border border-slate-700 mb-4">
+                <button id="tab-moves" class="flex-1 px-3 py-2 text-xs font-bold uppercase tracking-wide rounded bg-blue-600 text-white">
+                    Moves
+                </button>
+                <button id="tab-report" class="flex-1 px-3 py-2 text-xs font-bold uppercase tracking-wide rounded text-slate-400 hover:text-white">
+                    Report
+                </button>
+            </div>
+
+            <!-- Move Feed Panel -->
+            <div id="panel-moves" class="bg-slate-800 rounded-xl border border-slate-700 flex flex-col overflow-hidden shadow-xl flex-1">
+                <div class="p-3 border-b border-slate-700 bg-slate-800/50 flex justify-between items-center">
+                    <h3 class="text-xs font-bold uppercase tracking-widest text-slate-400">Move History</h3>
+                    <span id="notation-current" class="text-2xl font-black text-blue-400">-</span>
+                </div>
+                <div id="move-feed" class="p-4 flex flex-wrap gap-2 overflow-y-auto content-start flex-1">
+                    <!-- Moves injected here -->
+                </div>
+                <div class="p-3 bg-slate-900/50 border-t border-slate-700 text-[10px] text-slate-500 italic">
+                    Red underlined = immediate reversals | Purple markers = orientation changes
+                </div>
+            </div>
+
+            <!-- Report Panel (hidden by default) -->
+            <div id="panel-report" class="hidden bg-slate-800 rounded-xl border border-slate-700 overflow-y-auto shadow-xl flex-1">
+                <div id="report-content" class="p-4 space-y-4 text-sm">
+                    <!-- Report content injected here -->
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        /** DATA - Injected from Go template **/
+        const solveData = {{.SolveDataJSON}};
+
+        /** Build unified timeline from moves and orientations **/
+        let fullTimeline = [];
+
+        // Add all moves with their actual timestamps
+        solveData.moves.forEach((m, idx) => {
+            fullTimeline.push({
+                type: 'move',
+                ts_ms: m.ts_ms,
+                face: m.face,
+                turn: m.turn,
+                notation: m.notation,
+                index: idx
+            });
+        });
+
+        // Add all orientations
+        solveData.orientations.forEach(o => {
+            fullTimeline.push({
+                type: 'orientation',
+                ts_ms: o.ts_ms,
+                up_face: o.up_face,
+                front_face: o.front_face
+            });
+        });
+
+        // Sort by timestamp
+        fullTimeline.sort((a, b) => a.ts_ms - b.ts_ms);
+
+        /** 3D ENGINE **/
+        let scene, camera, renderer, cubeGroup, mainWrapper, orientationWrapper;
+        const COLORS = {
+            U: 0xFFFFFF, D: 0xFFFF00, F: 0x00FF00, B: 0x0000FF, R: 0xFF0000, L: 0xFFA500
+        };
+
+        function init3D() {
+            const container = document.getElementById('canvas-container');
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 1000);
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.setSize(container.clientWidth, container.clientHeight);
+            container.appendChild(renderer.domElement);
+
+            // Outer wrapper for user drag rotation
+            mainWrapper = new THREE.Group();
+            scene.add(mainWrapper);
+
+            // Inner wrapper for orientation changes (animated separately)
+            orientationWrapper = new THREE.Group();
+            mainWrapper.add(orientationWrapper);
+
+            // Cube group for face rotations
+            cubeGroup = new THREE.Group();
+            orientationWrapper.add(cubeGroup);
+
+            for (let x = -1; x <= 1; x++) {
+                for (let y = -1; y <= 1; y++) {
+                    for (let z = -1; z <= 1; z++) {
+                        const geometry = new THREE.BoxGeometry(0.95, 0.95, 0.95);
+                        const materials = [
+                            new THREE.MeshBasicMaterial({ color: x === 1 ? COLORS.R : 0x222222 }),
+                            new THREE.MeshBasicMaterial({ color: x === -1 ? COLORS.L : 0x222222 }),
+                            new THREE.MeshBasicMaterial({ color: y === 1 ? COLORS.U : 0x222222 }),
+                            new THREE.MeshBasicMaterial({ color: y === -1 ? COLORS.D : 0x222222 }),
+                            new THREE.MeshBasicMaterial({ color: z === 1 ? COLORS.F : 0x222222 }),
+                            new THREE.MeshBasicMaterial({ color: z === -1 ? COLORS.B : 0x222222 })
+                        ];
+                        const cubie = new THREE.Mesh(geometry, materials);
+                        cubie.position.set(x, y, z);
+                        cubie.userData = { originalX: x, originalY: y, originalZ: z };
+                        cubeGroup.add(cubie);
+                    }
+                }
+            }
+
+            camera.position.set(4, 4, 6);
+            camera.lookAt(0, 0, 0);
+
+            let isDragging = false;
+            let previousMousePosition = { x: 0, y: 0 };
+
+            container.addEventListener('mousedown', (e) => {
+                isDragging = true;
+                previousMousePosition = { x: e.offsetX, y: e.offsetY };
+            });
+
+            window.addEventListener('mousemove', (e) => {
+                if (!isDragging) return;
+                const deltaMove = { x: e.movementX || 0, y: e.movementY || 0 };
+                const factor = 0.005;
+                mainWrapper.rotation.y += deltaMove.x * factor;
+                mainWrapper.rotation.x += deltaMove.y * factor;
+            });
+
+            window.addEventListener('mouseup', () => { isDragging = false; });
+
+            document.getElementById('btn-reset-view').onclick = () => {
+                gsap.to(mainWrapper.rotation, { x: 0, y: 0, z: 0, duration: 0.5, ease: "power2.out" });
+            };
+
+            window.addEventListener('resize', () => {
+                camera.aspect = container.clientWidth / container.clientHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(container.clientWidth, container.clientHeight);
+            });
+
+            animate();
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            renderer.render(scene, camera);
+        }
+
+        /** ORIENTATION ROTATION **/
+        // Precomputed rotations for each up/front face combination
+        // Format: [upFace][frontFace] = {x, y, z} euler angles
+        const orientationRotations = {
+            'U': { 'F': {x:0, y:0, z:0}, 'R': {x:0, y:-Math.PI/2, z:0}, 'B': {x:0, y:Math.PI, z:0}, 'L': {x:0, y:Math.PI/2, z:0} },
+            'D': { 'F': {x:Math.PI, y:0, z:0}, 'R': {x:Math.PI, y:Math.PI/2, z:0}, 'B': {x:Math.PI, y:Math.PI, z:0}, 'L': {x:Math.PI, y:-Math.PI/2, z:0} },
+            'F': { 'U': {x:Math.PI/2, y:0, z:0}, 'R': {x:Math.PI/2, y:0, z:-Math.PI/2}, 'D': {x:Math.PI/2, y:0, z:Math.PI}, 'L': {x:Math.PI/2, y:0, z:Math.PI/2} },
+            'B': { 'U': {x:-Math.PI/2, y:0, z:0}, 'R': {x:-Math.PI/2, y:0, z:Math.PI/2}, 'D': {x:-Math.PI/2, y:0, z:Math.PI}, 'L': {x:-Math.PI/2, y:0, z:-Math.PI/2} },
+            'R': { 'F': {x:0, y:0, z:-Math.PI/2}, 'U': {x:-Math.PI/2, y:-Math.PI/2, z:0}, 'B': {x:0, y:Math.PI, z:-Math.PI/2}, 'D': {x:Math.PI/2, y:-Math.PI/2, z:0} },
+            'L': { 'F': {x:0, y:0, z:Math.PI/2}, 'U': {x:-Math.PI/2, y:Math.PI/2, z:0}, 'B': {x:0, y:Math.PI, z:Math.PI/2}, 'D': {x:Math.PI/2, y:Math.PI/2, z:0} }
+        };
+
+        let currentOrientation = { up: 'U', front: 'F' };
+
+        // Face flip mapping for 80s-style (white on top) solving
+        const flipFaceMap = { 'U': 'D', 'D': 'U', 'F': 'F', 'B': 'B', 'R': 'R', 'L': 'L' };
+
+        function applyOrientation(upFace, frontFace, instant = false) {
+            currentOrientation = { up: upFace, front: frontFace };
+
+            // Update display (always show actual orientation)
+            document.getElementById('stat-orientation').innerText = `${upFace}/${frontFace}`;
+
+            // If orientation is locked, don't rotate the view
+            if (orientationLocked) {
+                return;
+            }
+
+            // Apply flip for 80s-style solving (inverts U/D)
+            let displayUp = upFace;
+            let displayFront = frontFace;
+            if (flipOrientation) {
+                displayUp = flipFaceMap[upFace] || upFace;
+                // When flipping, we also need to adjust front face perspective
+                // If up becomes down, looking from "below" means front stays same
+            }
+
+            // Get target rotation
+            const rotations = orientationRotations[displayUp];
+            if (!rotations || !rotations[displayFront]) {
+                console.warn(`Unknown orientation: up=${displayUp}, front=${displayFront}`);
+                return;
+            }
+
+            const target = rotations[displayFront];
+
+            if (instant) {
+                orientationWrapper.rotation.set(target.x, target.y, target.z);
+            } else {
+                gsap.to(orientationWrapper.rotation, {
+                    x: target.x,
+                    y: target.y,
+                    z: target.z,
+                    duration: 0.3,
+                    ease: "power2.out"
+                });
+            }
+        }
+
+        /** CUBE MOVE LOGIC **/
+        function executeMove(face, turn, speed = 1, instant = false) {
+            if (instant) {
+                applyMoveToData(face, turn);
+                return Promise.resolve();
+            }
+
+            return new Promise(resolve => {
+                const axis = (face === 'R' || face === 'L') ? 'x' : (face === 'U' || face === 'D' ? 'y' : 'z');
+                const coord = (face === 'R' || face === 'U' || face === 'F') ? 1 : -1;
+
+                const cubiesToRotate = cubeGroup.children.filter(c =>
+                    c instanceof THREE.Mesh && Math.round(c.position[axis]) === coord
+                );
+
+                const angle = - (Math.PI / 2) * turn * (face === 'L' || face === 'D' || face === 'B' ? -1 : 1);
+                const duration = Math.min(0.2 / speed, 0.1);
+
+                const rotationAxis = new THREE.Vector3(
+                    axis === 'x' ? 1 : 0,
+                    axis === 'y' ? 1 : 0,
+                    axis === 'z' ? 1 : 0
+                );
+
+                let lastRotation = 0;
+                const animProxy = { r: 0 };
+                gsap.to(animProxy, {
+                    r: angle,
+                    duration: duration,
+                    ease: "power2.inOut",
+                    onUpdate: () => {
+                        const delta = animProxy.r - lastRotation;
+                        lastRotation = animProxy.r;
+
+                        const quaternion = new THREE.Quaternion();
+                        quaternion.setFromAxisAngle(rotationAxis, delta);
+
+                        cubiesToRotate.forEach(c => {
+                            c.position.applyQuaternion(quaternion);
+                            c.quaternion.premultiply(quaternion);
+                        });
+                    },
+                    onComplete: () => {
+                        normalizeCubies();
+                        resolve();
+                    }
+                });
+            });
+        }
+
+        function applyMoveToData(face, turn) {
+            const axis = (face === 'R' || face === 'L') ? 'x' : (face === 'U' || face === 'D' ? 'y' : 'z');
+            const coord = (face === 'R' || face === 'U' || face === 'F') ? 1 : -1;
+            const angle = - (Math.PI / 2) * turn * (face === 'L' || face === 'D' || face === 'B' ? -1 : 1);
+
+            const rotationAxis = new THREE.Vector3(
+                axis === 'x' ? 1 : 0,
+                axis === 'y' ? 1 : 0,
+                axis === 'z' ? 1 : 0
+            );
+            const quaternion = new THREE.Quaternion().setFromAxisAngle(rotationAxis, angle);
+
+            cubeGroup.children.forEach(c => {
+                if (c instanceof THREE.Mesh && Math.round(c.position[axis]) === coord) {
+                    c.position.applyQuaternion(quaternion);
+                    c.quaternion.premultiply(quaternion);
+                }
+            });
+            normalizeCubies();
+        }
+
+        function normalizeCubies() {
+            cubeGroup.children.forEach(c => {
+                if (c instanceof THREE.Mesh) {
+                    c.position.x = Math.round(c.position.x);
+                    c.position.y = Math.round(c.position.y);
+                    c.position.z = Math.round(c.position.z);
+
+                    c.rotation.x = Math.round(c.rotation.x / (Math.PI/2)) * (Math.PI/2);
+                    c.rotation.y = Math.round(c.rotation.y / (Math.PI/2)) * (Math.PI/2);
+                    c.rotation.z = Math.round(c.rotation.z / (Math.PI/2)) * (Math.PI/2);
+                }
+            });
+        }
+
+        function resetCube() {
+            cubeGroup.children.forEach(c => {
+                if (c instanceof THREE.Mesh) {
+                    c.position.set(c.userData.originalX, c.userData.originalY, c.userData.originalZ);
+                    c.rotation.set(0,0,0);
+                    c.quaternion.set(0,0,0,1);
+                }
+            });
+            // Reset orientation
+            orientationWrapper.rotation.set(0, 0, 0);
+            currentOrientation = { up: 'U', front: 'F' };
+            document.getElementById('stat-orientation').innerText = 'U/F';
+        }
+
+        /** PLAYBACK STATE **/
+        let isPlaying = false;
+        let currentTime = 0;
+        let playbackSpeed = 1;
+        let lastTimestamp = 0;
+        let lastEventIdx = -1;
+        let lastMoveIdx = -1;
+
+        /** MODE TOGGLES **/
+        let orientationLocked = false;  // When true, ignore orientation changes
+        let sequentialMode = false;     // When true, play moves sequentially without timing
+        let flipOrientation = false;    // When true, invert Y-axis for 80s-style solving
+
+        function getCurrentPhase() {
+            return solveData.phases.find(p => currentTime >= p.start_ts_ms && currentTime <= p.end_ts_ms) || solveData.phases[0];
+        }
+
+        function updateUI() {
+            const currentPhase = getCurrentPhase();
+            if (currentPhase) {
+                document.getElementById('phase-overlay').innerText = currentPhase.display_name;
+                document.getElementById('stat-tps').innerText = currentPhase.tps.toFixed(2);
+            }
+
+            document.getElementById('time-elapsed').innerText = formatTime(currentTime);
+
+            document.querySelectorAll('.phase-bar').forEach(bar => {
+                if(currentPhase && bar.dataset.phase === currentPhase.phase_key) bar.classList.add('active');
+                else bar.classList.remove('active');
+            });
+
+            // Highlight current move
+            const moveElements = document.querySelectorAll('.move-item');
+            moveElements.forEach((el, idx) => {
+                if (idx === lastMoveIdx) {
+                    el.classList.add('bg-blue-600', 'text-white', 'scale-110');
+                    el.classList.remove('bg-slate-700', 'text-slate-300');
+                    el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                    document.getElementById('notation-current').innerText = el.innerText;
+                } else {
+                    el.classList.remove('bg-blue-600', 'text-white', 'scale-110');
+                    el.classList.add('bg-slate-700', 'text-slate-300');
+                }
+            });
+            document.getElementById('stat-moves').innerText = Math.max(0, lastMoveIdx + 1);
+        }
+
+        function formatTime(ms) {
+            const totalSeconds = ms / 1000;
+            const mins = Math.floor(totalSeconds / 60);
+            const secs = (totalSeconds % 60).toFixed(1);
+            return `${mins.toString().padStart(2, '0')}:${secs.padStart(4, '0')}`;
+        }
+
+        // Step forward one move (for step button and sequential mode)
+        async function stepForward() {
+            // Find next move event
+            let nextMoveIdx = lastEventIdx + 1;
+            while (nextMoveIdx < fullTimeline.length && fullTimeline[nextMoveIdx].type !== 'move') {
+                // Process any orientation events we pass
+                const event = fullTimeline[nextMoveIdx];
+                if (event.type === 'orientation') {
+                    applyOrientation(event.up_face, event.front_face);
+                }
+                lastEventIdx = nextMoveIdx;
+                nextMoveIdx++;
+            }
+
+            if (nextMoveIdx >= fullTimeline.length) {
+                currentTime = solveData.total_duration_ms;
+                updateUI();
+                return;
+            }
+
+            const event = fullTimeline[nextMoveIdx];
+            currentTime = event.ts_ms;
+            await executeMove(event.face, event.turn, playbackSpeed * 2); // Faster animation for stepping
+            lastMoveIdx = event.index;
+            lastEventIdx = nextMoveIdx;
+            updateUI();
+        }
+
+        // Sequential playback loop - plays moves one after another without timing delays
+        async function sequentialPlaybackLoop() {
+            if (!isPlaying || !sequentialMode) return;
+
+            await stepForward();
+
+            if (lastEventIdx >= fullTimeline.length - 1) {
+                isPlaying = false;
+                togglePlayIcon();
+                return;
+            }
+
+            // Small delay between moves for visual clarity
+            setTimeout(() => {
+                if (isPlaying && sequentialMode) {
+                    sequentialPlaybackLoop();
+                }
+            }, 100 / playbackSpeed);
+        }
+
+        async function playbackLoop(timestamp) {
+            if (!isPlaying) return;
+
+            // If in sequential mode, use sequential playback instead
+            if (sequentialMode) {
+                sequentialPlaybackLoop();
+                return;
+            }
+
+            const delta = (timestamp - lastTimestamp) * playbackSpeed;
+            lastTimestamp = timestamp;
+            currentTime += delta;
+
+            if (currentTime >= solveData.total_duration_ms) {
+                currentTime = solveData.total_duration_ms;
+                isPlaying = false;
+                togglePlayIcon();
+            }
+
+            // Find all events we need to process
+            const targetEventIdx = fullTimeline.findIndex(e => e.ts_ms > currentTime) - 1;
+            const idxToUse = targetEventIdx === -2 ? fullTimeline.length - 1 : targetEventIdx;
+
+            if (idxToUse > lastEventIdx) {
+                for (let i = lastEventIdx + 1; i <= idxToUse; i++) {
+                    const event = fullTimeline[i];
+                    if (event.type === 'move') {
+                        await executeMove(event.face, event.turn, playbackSpeed);
+                        lastMoveIdx = event.index;
+                    } else if (event.type === 'orientation') {
+                        applyOrientation(event.up_face, event.front_face);
+                    }
+                    lastEventIdx = i;
+                    updateUI();
+                }
+            } else if (idxToUse < lastEventIdx) {
+                seekTo(currentTime);
+            }
+
+            updateUI();
+            requestAnimationFrame(playbackLoop);
+        }
+
+        function seekTo(timeMs) {
+            currentTime = timeMs;
+            resetCube();
+            lastEventIdx = -1;
+            lastMoveIdx = -1;
+
+            // Apply all events up to this time instantly
+            for (let i = 0; i < fullTimeline.length; i++) {
+                const event = fullTimeline[i];
+                if (event.ts_ms > currentTime) break;
+
+                if (event.type === 'move') {
+                    applyMoveToData(event.face, event.turn);
+                    lastMoveIdx = event.index;
+                } else if (event.type === 'orientation') {
+                    applyOrientation(event.up_face, event.front_face, true);
+                }
+                lastEventIdx = i;
+            }
+            updateUI();
+        }
+
+        function togglePlayIcon() {
+            const icon = document.getElementById('icon-play');
+            icon.innerHTML = isPlaying
+                ? '<path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>'
+                : '<path d="M8 5v14l11-7z"/>';
+        }
+
+        window.onload = () => {
+            init3D();
+            document.getElementById('solve-id').innerText = solveData.solve_id;
+            document.getElementById('time-total').innerText = formatTime(solveData.total_duration_ms);
+
+            // Display solve time prominently
+            if (solveData.solve_duration_ms > 0) {
+                document.getElementById('stat-solve-time').innerText = (solveData.solve_duration_ms / 1000).toFixed(1) + 's';
+            } else if (solveData.report && solveData.report.solve_time_ms > 0) {
+                document.getElementById('stat-solve-time').innerText = (solveData.report.solve_time_ms / 1000).toFixed(1) + 's';
+            }
+
+            // Match right column height to left column
+            function matchColumnHeights() {
+                const leftCol = document.getElementById('left-column');
+                const rightCol = document.getElementById('right-column');
+                if (leftCol && rightCol) {
+                    rightCol.style.height = leftCol.offsetHeight + 'px';
+                }
+            }
+            matchColumnHeights();
+            window.addEventListener('resize', matchColumnHeights);
+
+            const timeline = document.getElementById('timeline-container');
+            const colors = {
+                scramble: 'bg-gray-500', inspection: 'bg-yellow-500', white_cross: 'bg-red-500',
+                top_corners: 'bg-orange-500', white_corners: 'bg-orange-500',
+                middle_layer: 'bg-amber-500', bottom_cross: 'bg-emerald-500',
+                position_corners: 'bg-green-500', bottom_perm: 'bg-green-500',
+                orient_corners: 'bg-teal-500', bottom_orient: 'bg-teal-500',
+                complete: 'bg-blue-500'
+            };
+
+            // Add phase bars with solve start marker
+            let solveStartPos = 0;
+            let foundSolveStart = false;
+            solveData.phases.forEach(p => {
+                const width = (p.duration_ms / solveData.total_duration_ms) * 100;
+                const bar = document.createElement('div');
+                bar.className = `phase-bar ${colors[p.phase_key] || 'bg-blue-500'}`;
+                bar.style.width = `${width}%`;
+                bar.dataset.phase = p.phase_key;
+                bar.title = `${p.display_name} (${formatTime(p.duration_ms)})`;
+                bar.onclick = () => seekTo(p.start_ts_ms);
+                timeline.appendChild(bar);
+
+                // Track position for solve start marker
+                if (!foundSolveStart) {
+                    if (p.phase_key !== 'scramble' && p.phase_key !== 'inspection') {
+                        foundSolveStart = true;
+                    } else {
+                        solveStartPos += width;
+                    }
+                }
+            });
+
+            // Add solve start marker (green line)
+            if (solveStartPos > 0) {
+                const solveMarker = document.createElement('div');
+                solveMarker.className = 'absolute top-0 bottom-0 w-1 bg-green-500 z-10';
+                solveMarker.style.left = `${solveStartPos}%`;
+                solveMarker.title = 'Solve Start';
+                timeline.appendChild(solveMarker);
+            }
+
+            // Add orientation markers
+            solveData.orientations.forEach(o => {
+                const marker = document.createElement('div');
+                marker.className = 'orientation-marker';
+                marker.style.left = `${(o.ts_ms / solveData.total_duration_ms) * 100}%`;
+                marker.title = `Orientation: ${o.up_face} up, ${o.front_face} front`;
+                marker.onclick = () => seekTo(o.ts_ms);
+                timeline.appendChild(marker);
+            });
+
+            // Add moves to feed
+            const moveFeed = document.getElementById('move-feed');
+            solveData.moves.forEach((m, i) => {
+                const span = document.createElement('span');
+                const isReversal = i > 0 && m.face === solveData.moves[i-1].face && m.turn === -solveData.moves[i-1].turn;
+                span.className = `move-item cursor-pointer text-sm px-2 py-1 rounded bg-slate-700 text-slate-300 font-bold transition ${isReversal ? 'reversal ring-1 ring-red-400' : ''}`;
+                span.innerText = m.notation;
+                span.onclick = () => seekTo(m.ts_ms);
+                moveFeed.appendChild(span);
+            });
+
+            // Apply initial orientation if available
+            if (solveData.orientations.length > 0) {
+                const first = solveData.orientations[0];
+                if (first.ts_ms === 0) {
+                    applyOrientation(first.up_face, first.front_face, true);
+                }
+            }
+
+            // Play button
+            document.getElementById('btn-play').onclick = () => {
+                isPlaying = !isPlaying;
+                togglePlayIcon();
+                if (isPlaying) { lastTimestamp = performance.now(); requestAnimationFrame(playbackLoop); }
+            };
+
+            // Skip to solve
+            document.getElementById('btn-skip-to-solve').onclick = () => {
+                const solvePhase = solveData.phases.find(p =>
+                    p.phase_key !== 'scramble' && p.phase_key !== 'inspection'
+                );
+                if (solvePhase) {
+                    seekTo(solvePhase.start_ts_ms);
+                }
+            };
+
+            // Speed controls
+            document.querySelectorAll('#speed-controls button').forEach(btn => {
+                btn.onclick = () => {
+                    playbackSpeed = parseFloat(btn.dataset.speed);
+                    document.querySelectorAll('#speed-controls button').forEach(b => b.classList.remove('bg-blue-600'));
+                    btn.classList.add('bg-blue-600');
+                };
+            });
+
+            // Step button - advance one move
+            document.getElementById('btn-step').onclick = async () => {
+                if (isPlaying) {
+                    isPlaying = false;
+                    togglePlayIcon();
+                }
+                await stepForward();
+            };
+
+            // Lock orientation toggle
+            document.getElementById('btn-lock-orientation').onclick = () => {
+                orientationLocked = !orientationLocked;
+                const btn = document.getElementById('btn-lock-orientation');
+                if (orientationLocked) {
+                    btn.innerText = '🔒 Orient';
+                    btn.classList.add('bg-purple-600');
+                    btn.classList.remove('bg-slate-700');
+                } else {
+                    btn.innerText = '🔓 Orient';
+                    btn.classList.remove('bg-purple-600');
+                    btn.classList.add('bg-slate-700');
+                    // Re-apply current orientation
+                    applyOrientation(currentOrientation.up, currentOrientation.front);
+                }
+            };
+
+            // Sequential mode toggle
+            document.getElementById('btn-sequential').onclick = () => {
+                sequentialMode = !sequentialMode;
+                const btn = document.getElementById('btn-sequential');
+                if (sequentialMode) {
+                    btn.innerText = '📋 Sequential';
+                    btn.classList.add('bg-purple-600');
+                    btn.classList.remove('bg-slate-700');
+                } else {
+                    btn.innerText = '⏱️ Realtime';
+                    btn.classList.remove('bg-purple-600');
+                    btn.classList.add('bg-slate-700');
+                }
+            };
+
+            // Flip orientation toggle (80s style)
+            document.getElementById('btn-flip-y').onclick = () => {
+                flipOrientation = !flipOrientation;
+                const btn = document.getElementById('btn-flip-y');
+                if (flipOrientation) {
+                    btn.innerText = '↕️ 80s Style';
+                    btn.classList.add('bg-purple-600');
+                    btn.classList.remove('bg-slate-700');
+                } else {
+                    btn.innerText = '↕️ Modern';
+                    btn.classList.remove('bg-purple-600');
+                    btn.classList.add('bg-slate-700');
+                }
+                // Re-apply current orientation with new flip setting
+                applyOrientation(currentOrientation.up, currentOrientation.front);
+            };
+
+            // Tab switching
+            document.getElementById('tab-moves').onclick = () => {
+                document.getElementById('panel-moves').classList.remove('hidden');
+                document.getElementById('panel-report').classList.add('hidden');
+                document.getElementById('tab-moves').classList.add('bg-blue-600', 'text-white');
+                document.getElementById('tab-moves').classList.remove('text-slate-400');
+                document.getElementById('tab-report').classList.remove('bg-blue-600', 'text-white');
+                document.getElementById('tab-report').classList.add('text-slate-400');
+            };
+
+            document.getElementById('tab-report').onclick = () => {
+                document.getElementById('panel-moves').classList.add('hidden');
+                document.getElementById('panel-report').classList.remove('hidden');
+                document.getElementById('tab-report').classList.add('bg-blue-600', 'text-white');
+                document.getElementById('tab-report').classList.remove('text-slate-400');
+                document.getElementById('tab-moves').classList.remove('bg-blue-600', 'text-white');
+                document.getElementById('tab-moves').classList.add('text-slate-400');
+            };
+
+            // Build report content
+            if (solveData.report) {
+                buildReportPanel(solveData.report);
+            }
+
+            updateUI();
+        };
+
+        // Build the report panel HTML
+        function buildReportPanel(report) {
+            const container = document.getElementById('report-content');
+            let html = '';
+
+            // Summary section
+            html += `
+                <div class="bg-slate-900 rounded-lg p-3 border border-slate-700">
+                    <h4 class="text-xs font-bold uppercase tracking-widest text-blue-400 mb-3">Summary</h4>
+                    <div class="grid grid-cols-2 gap-2 text-xs">
+                        <div>Solve Time: <span class="text-white font-bold">${(report.solve_time_ms/1000).toFixed(1)}s</span></div>
+                        <div>TPS: <span class="text-white font-bold">${report.tps.toFixed(2)}</span></div>
+                        <div>Moves: <span class="text-white font-bold">${report.solve_moves}</span></div>
+                        <div>Optimized: <span class="text-white font-bold">${report.optimized_moves}</span></div>
+                        <div>Efficiency: <span class="text-white font-bold">${(report.efficiency * 100).toFixed(1)}%</span></div>
+                        <div>Longest Pause: <span class="text-white font-bold">${report.longest_pause_ms}ms</span></div>
+                        <div>Cancellations: <span class="text-red-400 font-bold">${report.immediate_cancels}</span></div>
+                        <div>Merge Opps: <span class="text-yellow-400 font-bold">${report.merge_opportunities}</span></div>
+                    </div>
+                </div>
+            `;
+
+            // Phase Analysis section
+            if (report.phase_analysis && report.phase_analysis.length > 0) {
+                html += `<div class="bg-slate-900 rounded-lg p-3 border border-slate-700">
+                    <h4 class="text-xs font-bold uppercase tracking-widest text-blue-400 mb-3">Phase Analysis</h4>
+                    <div class="space-y-3">`;
+
+                for (const phase of report.phase_analysis) {
+                    if (phase.phase_key === 'inspection') continue; // Skip inspection
+
+                    html += `
+                        <div class="border-l-2 border-slate-600 pl-3">
+                            <div class="flex justify-between items-center mb-1">
+                                <span class="font-bold text-white">${phase.display_name}</span>
+                                <span class="text-xs text-slate-400">${phase.move_count} moves · ${(phase.duration_ms/1000).toFixed(1)}s · ${phase.tps.toFixed(2)} TPS</span>
+                            </div>
+                            <div class="text-xs text-slate-400 font-mono break-all">${phase.moves || '(no moves)'}</div>`;
+
+                    if (phase.cancellations > 0) {
+                        html += `<div class="text-xs text-red-400 mt-1">⚠️ ${phase.cancellations} cancellation(s)</div>`;
+                    }
+
+                    if (phase.top_patterns && phase.top_patterns.length > 0) {
+                        html += `<div class="text-xs text-purple-400 mt-1">Patterns: ${phase.top_patterns.slice(0,2).join(', ')}</div>`;
+                    }
+
+                    html += `</div>`;
+                }
+
+                html += `</div></div>`;
+            }
+
+            // Diagnostics section
+            if (report.diagnostics) {
+                const diag = report.diagnostics;
+                html += `
+                    <div class="bg-slate-900 rounded-lg p-3 border border-slate-700">
+                        <h4 class="text-xs font-bold uppercase tracking-widest text-blue-400 mb-3">Diagnostics</h4>
+                        <div class="grid grid-cols-2 gap-2 text-xs">
+                            <div>Reversals: <span class="text-red-400 font-bold">${diag.reversal_count} (${(diag.reversal_rate*100).toFixed(1)}%)</span></div>
+                            <div>Short Loops: <span class="text-yellow-400 font-bold">${diag.short_loops}</span></div>
+                            <div>Base (D) Turns: <span class="text-white font-bold">${diag.base_turns} (${(diag.base_turn_ratio*100).toFixed(1)}%)</span></div>
+                            <div>Longest D Run: <span class="text-white font-bold">${diag.longest_base_run}</span></div>
+                            <div>Gap Range: <span class="text-white font-bold">${diag.min_gap_ms}-${diag.max_gap_ms}ms</span></div>
+                            <div>Avg Gap: <span class="text-white font-bold">${diag.avg_gap_ms.toFixed(0)}ms</span></div>
+                            <div>Pauses >750ms: <span class="text-orange-400 font-bold">${diag.pauses_over_750ms}</span></div>
+                            <div>Pauses >1.5s: <span class="text-red-400 font-bold">${diag.pauses_over_1500ms}</span></div>
+                        </div>
+                    </div>
+                `;
+
+                // Orientation diagnostics
+                if (diag.orientation_changes > 0) {
+                    html += `
+                        <div class="bg-slate-900 rounded-lg p-3 border border-slate-700">
+                            <h4 class="text-xs font-bold uppercase tracking-widest text-purple-400 mb-3">Orientation</h4>
+                            <div class="grid grid-cols-2 gap-2 text-xs">
+                                <div>Rotations: <span class="text-white font-bold">${diag.orientation_changes}</span></div>
+                                <div>Bursts: <span class="text-white font-bold">${diag.rotation_bursts}</span></div>
+                                <div>White Up: <span class="text-white font-bold">${diag.white_on_top_pct.toFixed(1)}%</span></div>
+                                <div>Green Front: <span class="text-white font-bold">${diag.green_front_pct.toFixed(1)}%</span></div>
+                            </div>
+                        </div>
+                    `;
+                }
+
+                // Phase entropy
+                if (diag.phase_entropy && diag.phase_entropy.length > 0) {
+                    html += `
+                        <div class="bg-slate-900 rounded-lg p-3 border border-slate-700">
+                            <h4 class="text-xs font-bold uppercase tracking-widest text-teal-400 mb-3">Phase Entropy</h4>
+                            <div class="text-[10px] text-slate-500 mb-2">Low = algorithmic, High = searching</div>
+                            <div class="space-y-1 text-xs">`;
+
+                    for (const pe of diag.phase_entropy) {
+                        const barWidth = Math.min(pe.entropy / 2.6 * 100, 100); // Max entropy ~2.6
+                        html += `
+                            <div class="flex items-center gap-2">
+                                <span class="w-24 truncate">${pe.display_name}</span>
+                                <div class="flex-1 bg-slate-700 rounded h-2">
+                                    <div class="bg-teal-500 h-2 rounded" style="width: ${barWidth}%"></div>
+                                </div>
+                                <span class="w-16 text-right">${pe.entropy.toFixed(2)} (${pe.distinct_faces})</span>
+                            </div>`;
+                    }
+
+                    html += `</div></div>`;
+                }
+            }
+
+            container.innerHTML = html;
+        }
+    </script>
+</body>
+</html>

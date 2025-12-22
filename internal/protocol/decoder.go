@@ -117,7 +117,8 @@ func DecodeCubeType(payload []byte) (*CubeTypeEvent, error) {
 }
 
 // DecodeOrientation decodes an orientation message payload.
-// Format: ASCII string "x#y#z#w" where # is the separator.
+// Format: ASCII string "x#y#z#w[checksum]\r\n" where # is the separator.
+// The checksum byte and trailing CRLF are stripped before parsing.
 func DecodeOrientation(payload []byte) (*OrientationEvent, error) {
 	str := string(payload)
 	parts := strings.Split(str, "#")
@@ -137,7 +138,11 @@ func DecodeOrientation(payload []byte) (*OrientationEvent, error) {
 	if err != nil {
 		return nil, fmt.Errorf("invalid z value: %w", err)
 	}
-	w, err := strconv.ParseFloat(parts[3], 64)
+
+	// The last part may have a trailing checksum byte and CRLF, extract only the numeric portion
+	wStr := parts[3]
+	wStr = extractNumeric(wStr)
+	w, err := strconv.ParseFloat(wStr, 64)
 	if err != nil {
 		return nil, fmt.Errorf("invalid w value: %w", err)
 	}
@@ -150,9 +155,35 @@ func DecodeOrientation(payload []byte) (*OrientationEvent, error) {
 	return event, nil
 }
 
+// extractNumeric extracts the leading numeric portion (including optional minus sign) from a string.
+func extractNumeric(s string) string {
+	var result strings.Builder
+	for i, r := range s {
+		if r == '-' && i == 0 {
+			result.WriteRune(r)
+		} else if r >= '0' && r <= '9' {
+			result.WriteRune(r)
+		} else if r == '.' {
+			result.WriteRune(r)
+		} else {
+			break
+		}
+	}
+	return result.String()
+}
+
 // quaternionToFaces converts a quaternion to discrete face orientations.
 // Returns which cube face is pointing up and which is facing the solver.
 func quaternionToFaces(x, y, z, w float64) (upFace, frontFace string) {
+	// Normalize the quaternion (GoCube sends raw integer values)
+	mag := math.Sqrt(x*x + y*y + z*z + w*w)
+	if mag > 0 {
+		x /= mag
+		y /= mag
+		z /= mag
+		w /= mag
+	}
+
 	// Rotate the up vector (0, 1, 0) by the quaternion
 	upX := 2 * (x*y - w*z)
 	upY := 1 - 2*(x*x+z*z)

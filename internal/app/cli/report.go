@@ -116,6 +116,18 @@ type PlaybackData struct {
 	Timeline      []PlaybackEvent        `json:"timeline"`
 }
 
+// PhaseAnalysis contains per-phase analysis data
+type PhaseAnalysis struct {
+	PhaseKey    string                     `json:"phase_key"`
+	DisplayName string                     `json:"display_name"`
+	MoveCount   int                        `json:"move_count"`
+	DurationMs  int64                      `json:"duration_ms"`
+	TPS         float64                    `json:"tps"`
+	Moves       string                     `json:"moves"`
+	Repetitions *analysis.RepetitionReport `json:"repetitions,omitempty"`
+	TopPatterns []analysis.NGram           `json:"top_patterns,omitempty"`
+}
+
 func runReportSolve(cmd *cobra.Command, args []string) error {
 	if reportSolveID == "" && !reportLast {
 		return fmt.Errorf("specify --id or --last")
@@ -364,7 +376,7 @@ func runReportSolve(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	// 4. Repetition analysis
+	// 4. Repetition analysis (needed for visualizer report)
 	fmt.Println("  - Analyzing repetitions...")
 	repReport := analysis.AnalyzeRepetitions(moves)
 	if err := writeJSON(filepath.Join(outputDir, "repetition_report.json"), repReport); err != nil {
@@ -398,16 +410,6 @@ func runReportSolve(cmd *cobra.Command, args []string) error {
 	}
 
 	// Write phase_moves directory and per-phase analysis
-	type PhaseAnalysis struct {
-		PhaseKey       string                    `json:"phase_key"`
-		DisplayName    string                    `json:"display_name"`
-		MoveCount      int                       `json:"move_count"`
-		DurationMs     int64                     `json:"duration_ms"`
-		TPS            float64                   `json:"tps"`
-		Moves          string                    `json:"moves"`
-		Repetitions    *analysis.RepetitionReport `json:"repetitions,omitempty"`
-		TopPatterns    []analysis.NGram          `json:"top_patterns,omitempty"`
-	}
 	var phaseAnalyses []PhaseAnalysis
 
 	if len(segments) > 0 {
@@ -488,6 +490,16 @@ func runReportSolve(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	// 8. Generate interactive visualizer HTML with full report data
+	fmt.Println("  - Generating visualizer...")
+	vizReport := buildVisualizerReport(
+		solveDurationMs, solveMoves, len(moves), len(optimized), efficiency, summary.TPSOverall,
+		longestPause, repReport, phaseAnalyses, diagnostics, phaseDefMap,
+	)
+	if err := generateVisualizerHTML(outputDir, solve, moveRecords, segments, orientations, phaseDefMap, vizReport); err != nil {
+		return fmt.Errorf("generating visualizer: %w", err)
+	}
+
 	fmt.Println()
 	fmt.Printf("Solve: %s\n", solve.StartedAt.Format("2006-01-02 15:04:05"))
 	fmt.Printf("Report generated: %s\n", outputDir)
@@ -497,6 +509,7 @@ func runReportSolve(cmd *cobra.Command, args []string) error {
 	fmt.Println("  - moves.txt")
 	fmt.Println("  - moves.json")
 	fmt.Println("  - playback.json")
+	fmt.Println("  - visualizer.html")
 	fmt.Println("  - repetition_report.json")
 	fmt.Println("  - ngram_report.json")
 	if len(finalPhaseMoves) > 0 {
@@ -635,6 +648,318 @@ func truncateString(s string, maxLen int) string {
 	return s[:maxLen-3] + "..."
 }
 
+// GenerateReportForSolve generates a full report for a solve and returns the output directory.
+// This can be called from both CLI commands and the TUI.
+func GenerateReportForSolve(db *storage.DB, solveID string) (string, error) {
+	solveRepo := storage.NewSolveRepository(db)
+	moveRepo := storage.NewMoveRepository(db)
+	phaseRepo := storage.NewPhaseRepository(db)
+	orientRepo := storage.NewOrientationRepository(db)
+
+	solve, err := solveRepo.Get(solveID)
+	if err != nil {
+		return "", fmt.Errorf("failed to get solve: %w", err)
+	}
+	if solve == nil {
+		return "", fmt.Errorf("solve not found")
+	}
+
+	// Get moves
+	moveRecords, err := moveRepo.GetBySolve(solve.SolveID)
+	if err != nil {
+		return "", fmt.Errorf("failed to get moves: %w", err)
+	}
+
+	moves := storage.ToMoves(moveRecords)
+
+	// Get phase segments
+	segments, err := phaseRepo.GetPhaseSegments(solve.SolveID)
+	if err != nil {
+		segments = nil
+	}
+
+	// Get phase defs for display names
+	phaseDefs, _ := phaseRepo.GetAllPhaseDefs()
+	phaseDefMap := make(map[string]string)
+	for _, pd := range phaseDefs {
+		phaseDefMap[pd.PhaseKey] = pd.DisplayName
+	}
+
+	// Create output directory
+	dirName := solve.StartedAt.Format("2006-01-02_150405")
+	outputDir := filepath.Join("reports", dirName)
+	if err := os.MkdirAll(outputDir, 0755); err != nil {
+		return "", fmt.Errorf("failed to create output directory: %w", err)
+	}
+
+	// Basic stats
+	longestPause := analysis.FindLongestPause(moves)
+	pauseCount := analysis.CountPausesOver(moves, 1500)
+	avgMoveDuration := analysis.CalculateAvgMoveDuration(moves)
+
+	// Optimization analysis
+	optimized := analysis.OptimizeMoves(moves)
+	efficiency := analysis.CalculateEfficiency(moves, optimized)
+
+	// Movement profile
+	profile := analysis.AnalyzeMovementProfile(moves)
+
+	// Calculate actual solve time
+	var solveDurationMs int64
+	var solveMoves int
+	for _, seg := range segments {
+		if seg.PhaseKey != "scramble" && seg.PhaseKey != "inspection" {
+			solveDurationMs += seg.DurationMs
+			solveMoves += seg.MoveCount
+		}
+	}
+
+	// Build summary
+	summary := FullSolveSummary{
+		SolveID:            solve.SolveID,
+		StartedAt:          solve.StartedAt.Format(time.RFC3339),
+		SolveDurationMs:    solveDurationMs,
+		SolveMoves:         solveMoves,
+		TotalMoves:         len(moves),
+		OptimizedMoves:     len(optimized),
+		Efficiency:         efficiency,
+		LongestPauseMs:     longestPause,
+		PauseCountOver1500: pauseCount,
+		AvgMoveDurationMs:  avgMoveDuration,
+		MovementProfile:    profile,
+	}
+
+	if solve.EndedAt != nil {
+		summary.EndedAt = solve.EndedAt.Format(time.RFC3339)
+	}
+	if solve.DurationMs != nil {
+		summary.SessionDurationMs = *solve.DurationMs
+	}
+	if solveDurationMs > 0 && solveMoves > 0 {
+		summary.TPSOverall = float64(solveMoves) / (float64(solveDurationMs) / 1000.0)
+	}
+	if solve.Notes != nil {
+		summary.Notes = *solve.Notes
+	}
+
+	// Add phase stats
+	for _, seg := range segments {
+		displayName := seg.PhaseKey
+		if dn, ok := phaseDefMap[seg.PhaseKey]; ok {
+			displayName = dn
+		}
+		summary.PhaseStats = append(summary.PhaseStats, PhaseStatsReport{
+			PhaseKey:    seg.PhaseKey,
+			DisplayName: displayName,
+			StartTsMs:   seg.StartTsMs,
+			EndTsMs:     seg.EndTsMs,
+			DurationMs:  seg.DurationMs,
+			MoveCount:   seg.MoveCount,
+			TPS:         seg.TPS,
+		})
+	}
+
+	// Write solve_summary.json
+	if err := writeJSON(filepath.Join(outputDir, "solve_summary.json"), summary); err != nil {
+		return "", err
+	}
+
+	// Write moves.txt
+	var notations []string
+	for _, m := range moves {
+		notations = append(notations, m.Notation())
+	}
+	movesText := ""
+	for i, n := range notations {
+		if i > 0 {
+			movesText += " "
+		}
+		movesText += n
+	}
+	if err := os.WriteFile(filepath.Join(outputDir, "moves.txt"), []byte(movesText+"\n"), 0644); err != nil {
+		return "", fmt.Errorf("failed to write moves.txt: %w", err)
+	}
+
+	// Write moves.json
+	type MoveJSON struct {
+		MoveIndex int    `json:"move_index"`
+		TsMs      int64  `json:"ts_ms"`
+		Face      string `json:"face"`
+		Turn      int    `json:"turn"`
+		Notation  string `json:"notation"`
+	}
+	var movesJSON []MoveJSON
+	for i, m := range moves {
+		movesJSON = append(movesJSON, MoveJSON{
+			MoveIndex: i,
+			TsMs:      m.Time.UnixMilli(),
+			Face:      string(m.Face),
+			Turn:      int(m.Turn),
+			Notation:  m.Notation(),
+		})
+	}
+	if err := writeJSON(filepath.Join(outputDir, "moves.json"), movesJSON); err != nil {
+		return "", err
+	}
+
+	// Write playback.json
+	orientations, _ := orientRepo.GetBySolve(solve.SolveID)
+	var timeline []PlaybackEvent
+
+	for _, m := range moveRecords {
+		timeline = append(timeline, PlaybackEvent{
+			TsMs:     m.TsMs,
+			Type:     "move",
+			Face:     m.Face,
+			Turn:     m.Turn,
+			Notation: m.Notation,
+		})
+	}
+	for _, o := range orientations {
+		timeline = append(timeline, PlaybackEvent{
+			TsMs:      o.TsMs,
+			Type:      "orientation",
+			UpFace:    o.UpFace,
+			FrontFace: o.FrontFace,
+		})
+	}
+	sort.Slice(timeline, func(i, j int) bool {
+		return timeline[i].TsMs < timeline[j].TsMs
+	})
+
+	playback := PlaybackData{
+		SolveID:      solve.SolveID,
+		TotalMoves:   len(moveRecords),
+		TotalOrients: len(orientations),
+		Timeline:     timeline,
+	}
+	if solve.DurationMs != nil {
+		playback.DurationMs = *solve.DurationMs
+	}
+	for _, seg := range segments {
+		displayName := seg.PhaseKey
+		if dn, ok := phaseDefMap[seg.PhaseKey]; ok {
+			displayName = dn
+		}
+		playback.Phases = append(playback.Phases, PhaseStatsReport{
+			PhaseKey:    seg.PhaseKey,
+			DisplayName: displayName,
+			StartTsMs:   seg.StartTsMs,
+			EndTsMs:     seg.EndTsMs,
+			DurationMs:  seg.DurationMs,
+			MoveCount:   seg.MoveCount,
+			TPS:         seg.TPS,
+		})
+	}
+	if err := writeJSON(filepath.Join(outputDir, "playback.json"), playback); err != nil {
+		return "", err
+	}
+
+	// Repetition analysis
+	repReport := analysis.AnalyzeRepetitions(moves)
+	if err := writeJSON(filepath.Join(outputDir, "repetition_report.json"), repReport); err != nil {
+		return "", err
+	}
+
+	// N-gram mining
+	ngramReport := analysis.MineNGrams(moves, 4, 14, 50)
+	if err := writeJSON(filepath.Join(outputDir, "ngram_report.json"), ngramReport); err != nil {
+		return "", err
+	}
+
+	// Final phase analysis
+	var finalPhaseMoves []gocube.Move
+	for _, seg := range segments {
+		if seg.PhaseKey == "bottom_orient" {
+			phaseMoveRecords, _ := moveRepo.GetBySolveRange(solve.SolveID, seg.StartTsMs, seg.EndTsMs)
+			finalPhaseMoves = storage.ToMoves(phaseMoveRecords)
+			break
+		}
+	}
+	if len(finalPhaseMoves) > 0 {
+		finalReport := analysis.AnalyzeFinalPhase(finalPhaseMoves)
+		finalReport.FinalPhaseMoveCount = len(finalPhaseMoves)
+		writeJSON(filepath.Join(outputDir, "final_phase_report.json"), finalReport)
+	}
+
+	// Phase analysis
+	var phaseAnalyses []PhaseAnalysis
+	if len(segments) > 0 {
+		phaseMoveDir := filepath.Join(outputDir, "phase_moves")
+		os.MkdirAll(phaseMoveDir, 0755)
+
+		for _, seg := range segments {
+			phaseMoveRecords, _ := moveRepo.GetBySolveRange(solve.SolveID, seg.StartTsMs, seg.EndTsMs)
+			phaseMoves := storage.ToMoves(phaseMoveRecords)
+			var phaseNotations []string
+			for _, m := range phaseMoves {
+				phaseNotations = append(phaseNotations, m.Notation())
+			}
+			phaseText := ""
+			for i, n := range phaseNotations {
+				if i > 0 {
+					phaseText += " "
+				}
+				phaseText += n
+			}
+			os.WriteFile(filepath.Join(phaseMoveDir, seg.PhaseKey+".txt"), []byte(phaseText+"\n"), 0644)
+
+			displayName := seg.PhaseKey
+			if dn, ok := phaseDefMap[seg.PhaseKey]; ok {
+				displayName = dn
+			}
+
+			pa := PhaseAnalysis{
+				PhaseKey:    seg.PhaseKey,
+				DisplayName: displayName,
+				MoveCount:   len(phaseMoves),
+				DurationMs:  seg.DurationMs,
+				TPS:         seg.TPS,
+				Moves:       phaseText,
+			}
+
+			if len(phaseMoves) > 0 {
+				pa.Repetitions = analysis.AnalyzeRepetitions(phaseMoves)
+			}
+			if len(phaseMoves) >= 4 {
+				phaseNgrams := analysis.MineNGrams(phaseMoves, 4, 8, 10)
+				var topPatterns []analysis.NGram
+				for n := 4; n <= 8; n++ {
+					if ngrams, ok := phaseNgrams.TopNGrams[n]; ok {
+						for _, ng := range ngrams {
+							if ng.Count >= 2 {
+								topPatterns = append(topPatterns, ng)
+							}
+						}
+					}
+				}
+				pa.TopPatterns = topPatterns
+			}
+
+			phaseAnalyses = append(phaseAnalyses, pa)
+		}
+
+		writeJSON(filepath.Join(outputDir, "phase_analysis.json"), phaseAnalyses)
+	}
+
+	// Diagnostics
+	diagnostics, _ := analysis.AnalyzeDiagnostics(solve.SolveID, moveRepo, phaseRepo, orientRepo)
+	if diagnostics != nil {
+		writeJSON(filepath.Join(outputDir, "diagnostics.json"), diagnostics)
+	}
+
+	// Generate visualiser
+	vizReport := buildVisualizerReport(
+		solveDurationMs, solveMoves, len(moves), len(optimized), efficiency, summary.TPSOverall,
+		longestPause, repReport, phaseAnalyses, diagnostics, phaseDefMap,
+	)
+	if err := generateVisualizerHTML(outputDir, solve, moveRecords, segments, orientations, phaseDefMap, vizReport); err != nil {
+		return "", fmt.Errorf("generating visualizer: %w", err)
+	}
+
+	return outputDir, nil
+}
+
 func runReportTrend(cmd *cobra.Command, args []string) error {
 	// Open database
 	db, err := openDB()
@@ -763,4 +1088,114 @@ func writeJSON(path string, data interface{}) error {
 		return fmt.Errorf("failed to write %s: %w", path, err)
 	}
 	return nil
+}
+
+// buildVisualizerReport constructs the report data for the visualizer.
+func buildVisualizerReport(
+	solveDurationMs int64,
+	solveMoves int,
+	totalMoves int,
+	optimizedMoves int,
+	efficiency float64,
+	tps float64,
+	longestPauseMs int64,
+	repReport *analysis.RepetitionReport,
+	phaseAnalyses []PhaseAnalysis,
+	diagnostics *analysis.SolveDiagnostics,
+	phaseDefMap map[string]string,
+) *VisualizerReport {
+	report := &VisualizerReport{
+		SolveTimeMs:        solveDurationMs,
+		TotalMoves:         totalMoves,
+		SolveMoves:         solveMoves,
+		OptimizedMoves:     optimizedMoves,
+		Efficiency:         efficiency,
+		TPS:                tps,
+		LongestPauseMs:     longestPauseMs,
+		ImmediateCancels:   len(repReport.ImmediateCancellations),
+		MergeOpportunities: len(repReport.MergeOpportunities),
+	}
+
+	// Add phase analysis
+	for _, pa := range phaseAnalyses {
+		var topPatterns []string
+		for _, ng := range pa.TopPatterns {
+			if len(topPatterns) < 3 { // Limit to top 3
+				topPatterns = append(topPatterns, fmt.Sprintf("%dx: %v", ng.Count, ng.Sequence))
+			}
+		}
+
+		cancellations := 0
+		if pa.Repetitions != nil {
+			cancellations = len(pa.Repetitions.ImmediateCancellations)
+		}
+
+		report.PhaseAnalysis = append(report.PhaseAnalysis, VisualizerPhaseAnalysis{
+			PhaseKey:      pa.PhaseKey,
+			DisplayName:   pa.DisplayName,
+			MoveCount:     pa.MoveCount,
+			DurationMs:    pa.DurationMs,
+			TPS:           pa.TPS,
+			Moves:         pa.Moves,
+			Cancellations: cancellations,
+			TopPatterns:   topPatterns,
+		})
+	}
+
+	// Add diagnostics if available
+	if diagnostics != nil {
+		vizDiag := &VisualizerDiagnostics{
+			ReversalCount:  diagnostics.Overall.ImmediateReversals,
+			ReversalRate:   diagnostics.Overall.ReversalRate,
+			BaseTurns:      diagnostics.Overall.BaseTurns,
+			BaseTurnRatio:  diagnostics.Overall.BaseTurnRatio,
+			LongestBaseRun: diagnostics.Overall.LongestBaseRun,
+			ShortLoops:     diagnostics.Overall.ShortLoops,
+			MinGapMs:       diagnostics.Overall.MinGapMs,
+			MaxGapMs:       diagnostics.Overall.MaxGapMs,
+			AvgGapMs:       diagnostics.Overall.AvgGapMs,
+			PausesOver750:  diagnostics.Overall.GapsOver750ms,
+			PausesOver1500: diagnostics.Overall.GapsOver1500ms,
+			PausesOver3000: diagnostics.Overall.GapsOver3000ms,
+		}
+
+		// Orientation diagnostics
+		vizDiag.OrientationChanges = diagnostics.Orientation.TotalChanges
+		vizDiag.RotationBursts = diagnostics.Orientation.RotationBursts
+		vizDiag.WhiteOnTopPct = diagnostics.Orientation.WhiteOnTopPct
+		vizDiag.GreenFrontPct = diagnostics.Orientation.GreenFrontPct
+
+		// White cross specific
+		for _, pd := range diagnostics.Phases {
+			if pd.PhaseKey == "white_cross" && pd.MoveCount > 0 {
+				vizDiag.WhiteCrossBaseTurns = pd.BaseTurns
+				vizDiag.WhiteCrossBaseTurnRatio = pd.BaseTurnRatio
+				vizDiag.WhiteCrossReversals = pd.ImmediateReversals
+				vizDiag.WhiteCrossReversalRate = pd.ReversalRate
+				vizDiag.WhiteCrossEdgePlacements = pd.EdgePlacements
+				vizDiag.WhiteCrossAvgMovesPerEdge = pd.AvgMovesPerEdge
+				break
+			}
+		}
+
+		// Phase entropy
+		for _, pd := range diagnostics.Phases {
+			if pd.MoveCount > 0 && pd.PhaseKey != "scramble" && pd.PhaseKey != "inspection" {
+				displayName := pd.PhaseKey
+				if dn, ok := phaseDefMap[pd.PhaseKey]; ok {
+					displayName = dn
+				}
+				vizDiag.PhaseEntropy = append(vizDiag.PhaseEntropy, VisualizerPhaseEntropy{
+					PhaseKey:      pd.PhaseKey,
+					DisplayName:   displayName,
+					Entropy:       pd.FaceEntropy,
+					DistinctFaces: pd.DistinctFaces,
+				})
+			}
+		}
+
+		report.Diagnostics = vizDiag
+	}
+
+	return report
 }

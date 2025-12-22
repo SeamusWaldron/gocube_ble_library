@@ -121,6 +121,9 @@ type recordModel struct {
 	// Logging
 	logger    *SolveLogger
 	logPath   string
+
+	// Report
+	reportPath string
 }
 
 func newRecordModel(db *storage.DB, stateFile *recorder.StateFile, prescanClient *ble.Client, scanResults []ble.ScanResult) *recordModel {
@@ -451,6 +454,16 @@ func (m *recordModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 								m.recording = false
 								m.currentPhase = "complete"
 
+								// Generate report automatically
+								if m.solveID != "" {
+									reportDir, err := GenerateReportForSolve(m.db, m.solveID)
+									if err != nil {
+										m.err = fmt.Errorf("report generation failed: %w", err)
+									} else {
+										m.reportPath = reportDir
+									}
+								}
+
 								// LED celebration: turn on for 5 seconds
 								if m.client != nil {
 									m.client.ToggleBacklight()
@@ -504,6 +517,7 @@ func (m *recordModel) startSolve() tea.Cmd {
 		m.detectedPhase = "complete" // Start assumes solved cube
 		m.solveStarted = false       // User must press SPACE after scrambling
 		m.inspecting = false         // Not yet in inspection
+		m.reportPath = ""            // Clear previous report path
 
 		// Reset tracker to solved state
 		if m.tracker != nil {
@@ -529,6 +543,17 @@ func (m *recordModel) endSolve() tea.Cmd {
 		}
 
 		m.recording = false
+
+		// Generate report automatically
+		if m.solveID != "" {
+			reportDir, err := GenerateReportForSolve(m.db, m.solveID)
+			if err != nil {
+				m.err = fmt.Errorf("report generation failed: %w", err)
+			} else {
+				m.reportPath = reportDir
+			}
+		}
+
 		return nil
 	}
 }
@@ -647,6 +672,9 @@ func (m *recordModel) View() string {
 			if m.elapsed.Seconds() > 0 {
 				tps := float64(len(m.moves)) / m.elapsed.Seconds()
 				b.WriteString(fmt.Sprintf("TPS: %.2f\n", tps))
+			}
+			if m.reportPath != "" {
+				b.WriteString(fmt.Sprintf("Report: %s\n", m.reportPath))
 			}
 			b.WriteString("\n")
 			b.WriteString("Press 's' to start a new solve (cube must be SOLVED first)\n")

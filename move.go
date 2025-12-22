@@ -1,26 +1,9 @@
-// Package gocube provides a Go library for interacting with GoCube smart
-// Rubik's cubes via Bluetooth Low Energy (BLE).
-//
-// The library supports:
-//   - Device discovery and connection
-//   - Real-time move tracking with timestamps
-//   - Cube state simulation and phase detection
-//   - Orientation tracking via quaternion conversion
-//
-// Basic usage:
-//
-//	client, _ := gocube.NewClient()
-//	defer client.Disconnect()
-//
-//	results, _ := client.Scan(ctx, 5*time.Second)
-//	client.Connect(ctx, results[0].UUID)
-//
-//	client.SetMessageCallback(func(msg gocube.Message) {
-//	    if rot, ok := msg.AsRotation(); ok {
-//	        fmt.Printf("Move: %s\n", rot.Move.Notation())
-//	    }
-//	})
 package gocube
+
+import (
+	"strings"
+	"time"
+)
 
 // Face represents a cube face in standard notation.
 type Face string
@@ -38,16 +21,16 @@ const (
 type Turn int
 
 const (
-	TurnCW  Turn = 1  // Clockwise quarter turn
-	TurnCCW Turn = -1 // Counter-clockwise quarter turn
-	Turn180 Turn = 2  // 180 degree turn (half turn)
+	CW     Turn = 1  // Clockwise (90 degrees)
+	CCW    Turn = -1 // Counter-clockwise (90 degrees)
+	Double Turn = 2  // Half turn (180 degrees)
 )
 
-// Move represents a single cube move with face and turn direction.
+// Move represents a single cube move with face, turn direction, and optional timestamp.
 type Move struct {
-	Face      Face  `json:"face"`
-	Turn      Turn  `json:"turn"`
-	Timestamp int64 `json:"ts_ms"` // Milliseconds since solve start
+	Face Face      // Which face to turn
+	Turn Turn      // Direction and amount
+	Time time.Time // When the move occurred (optional)
 }
 
 // Notation returns the standard cube notation string for this move.
@@ -55,239 +38,115 @@ type Move struct {
 func (m Move) Notation() string {
 	suffix := ""
 	switch m.Turn {
-	case TurnCCW:
+	case CCW:
 		suffix = "'"
-	case Turn180:
+	case Double:
 		suffix = "2"
 	}
 	return string(m.Face) + suffix
 }
 
 // Inverse returns the inverse of this move.
+// R becomes R', R' becomes R, R2 stays R2.
 func (m Move) Inverse() Move {
 	inv := m
 	switch m.Turn {
-	case TurnCW:
-		inv.Turn = TurnCCW
-	case TurnCCW:
-		inv.Turn = TurnCW
-	// Turn180 is its own inverse
+	case CW:
+		inv.Turn = CCW
+	case CCW:
+		inv.Turn = CW
+	// Double is its own inverse
 	}
 	return inv
 }
 
-// IsCancellation returns true if the other move cancels this move.
-func (m Move) IsCancellation(other Move) bool {
-	if m.Face != other.Face {
-		return false
-	}
-	return m.Turn == -other.Turn ||
-		(m.Turn == Turn180 && other.Turn == Turn180)
+// WithTime returns a copy of the move with the specified timestamp.
+func (m Move) WithTime(t time.Time) Move {
+	m.Time = t
+	return m
 }
 
-// CanMerge returns true if two adjacent same-face moves can be merged.
-func (m Move) CanMerge(other Move) bool {
-	return m.Face == other.Face
+// String returns the notation string (alias for Notation).
+func (m Move) String() string {
+	return m.Notation()
 }
 
-// Merge combines two same-face moves into one (or returns nil if they cancel).
-// Returns nil if the moves cannot be merged or if they cancel out completely.
-func (m Move) Merge(other Move) *Move {
-	if m.Face != other.Face {
-		return nil
+// ParseMove parses a standard notation string into a Move.
+// Examples: R, R', R2, U, U', U2
+// Returns an error if the notation is invalid.
+func ParseMove(s string) (Move, error) {
+	s = strings.TrimSpace(s)
+	if len(s) == 0 {
+		return Move{}, ErrInvalidNotation
 	}
 
-	combined := int(m.Turn) + int(other.Turn)
-	// Normalize: -2 and 2 are both half turns, values outside [-2,2] wrap
-	combined = ((combined + 2) % 4) - 2
-	if combined > 2 {
-		combined -= 4
-	} else if combined < -2 {
-		combined += 4
-	}
-
-	if combined == 0 {
-		return nil // Moves cancel out
-	}
-
-	// Normalize half turn direction
-	if combined == -2 {
-		combined = 2
-	}
-
-	return &Move{
-		Face:      m.Face,
-		Turn:      Turn(combined),
-		Timestamp: other.Timestamp,
-	}
-}
-
-// Token encodes the move as a single byte for efficient n-gram processing.
-// Encoding: face*3 + turn_code where:
-//   - face: R=0, L=1, U=2, D=3, F=4, B=5
-//   - turn_code: CCW=0, CW=1, 180=2
-func (m Move) Token() uint8 {
-	var faceCode uint8
-	switch m.Face {
-	case FaceR:
-		faceCode = 0
-	case FaceL:
-		faceCode = 1
-	case FaceU:
-		faceCode = 2
-	case FaceD:
-		faceCode = 3
-	case FaceF:
-		faceCode = 4
-	case FaceB:
-		faceCode = 5
-	}
-
-	var turnCode uint8
-	switch m.Turn {
-	case TurnCCW:
-		turnCode = 0
-	case TurnCW:
-		turnCode = 1
-	case Turn180:
-		turnCode = 2
-	}
-
-	return faceCode*3 + turnCode
-}
-
-// MoveFromToken decodes a token back into a Move.
-func MoveFromToken(token uint8) Move {
-	faceCode := token / 3
-	turnCode := token % 3
-
+	// Extract face
+	faceChar := s[0]
 	var face Face
-	switch faceCode {
-	case 0:
+	switch faceChar {
+	case 'R', 'r':
 		face = FaceR
-	case 1:
+	case 'L', 'l':
 		face = FaceL
-	case 2:
+	case 'U', 'u':
 		face = FaceU
-	case 3:
+	case 'D', 'd':
 		face = FaceD
-	case 4:
+	case 'F', 'f':
 		face = FaceF
-	case 5:
+	case 'B', 'b':
 		face = FaceB
+	default:
+		return Move{}, ErrInvalidNotation
 	}
 
-	var turn Turn
-	switch turnCode {
-	case 0:
-		turn = TurnCCW
-	case 1:
-		turn = TurnCW
-	case 2:
-		turn = Turn180
+	// Extract turn
+	turn := CW // Default is clockwise
+	if len(s) > 1 {
+		suffix := s[1:]
+		switch suffix {
+		case "'", "`":
+			turn = CCW
+		case "2":
+			turn = Double
+		case "2'", "2`":
+			turn = Double // Same as 180
+		default:
+			return Move{}, ErrInvalidNotation
+		}
 	}
 
-	return Move{Face: face, Turn: turn}
+	return Move{Face: face, Turn: turn}, nil
 }
 
-// ColorToFace maps GoCube color names to standard cube face notation.
-// This mapping assumes the standard orientation: White on top, Green in front.
-var ColorToFace = map[string]Face{
-	"white":  FaceU, // Up
-	"yellow": FaceD, // Down
-	"green":  FaceF, // Front
-	"blue":   FaceB, // Back
-	"red":    FaceR, // Right
-	"orange": FaceL, // Left
-}
+// ParseMoves parses a space-separated sequence of moves.
+// Example: "R U R' U'"
+// Invalid moves are skipped.
+func ParseMoves(s string) ([]Move, error) {
+	parts := strings.Fields(s)
+	moves := make([]Move, 0, len(parts))
 
-// RotationToMove converts a GoCube rotation event to a canonical Move.
-func RotationToMove(rot RotationEvent, timestampMs int64) Move {
-	face := ColorToFace[rot.Color]
-
-	var turn Turn
-	if rot.Clockwise {
-		turn = TurnCW
-	} else {
-		turn = TurnCCW
-	}
-
-	return Move{
-		Face:      face,
-		Turn:      turn,
-		Timestamp: timestampMs,
-	}
-}
-
-// RotationsToMoves converts a slice of rotation events to canonical moves.
-// It also handles merging adjacent same-face moves (e.g., two R clockwise = R2).
-func RotationsToMoves(rotations []RotationEvent, timestampMs int64) []Move {
-	if len(rotations) == 0 {
-		return nil
-	}
-
-	moves := make([]Move, 0, len(rotations))
-	for _, rot := range rotations {
-		move := RotationToMove(rot, timestampMs)
+	for _, part := range parts {
+		move, err := ParseMove(part)
+		if err != nil {
+			continue // Skip invalid moves
+		}
 		moves = append(moves, move)
 	}
 
-	// Merge adjacent same-face moves
-	return MergeMoves(moves)
+	return moves, nil
 }
 
-// MergeMoves merges adjacent same-face moves.
-// For example: R R becomes R2, R R R becomes R2 R', R R R R cancels out.
-func MergeMoves(moves []Move) []Move {
-	if len(moves) <= 1 {
-		return moves
+// FormatMoves formats a slice of moves as a space-separated notation string.
+func FormatMoves(moves []Move) string {
+	if len(moves) == 0 {
+		return ""
 	}
 
-	result := make([]Move, 0, len(moves))
-
-	for _, move := range moves {
-		if len(result) == 0 {
-			result = append(result, move)
-			continue
-		}
-
-		last := &result[len(result)-1]
-		if last.Face == move.Face {
-			// Try to merge
-			merged := last.Merge(move)
-			if merged == nil {
-				// Moves cancelled out - remove the last move
-				result = result[:len(result)-1]
-			} else {
-				// Replace last with merged
-				*last = *merged
-			}
-		} else {
-			result = append(result, move)
-		}
-	}
-
-	return result
-}
-
-// MovesToNotation converts a slice of moves to notation strings.
-func MovesToNotation(moves []Move) []string {
-	result := make([]string, len(moves))
+	parts := make([]string, len(moves))
 	for i, m := range moves {
-		result[i] = m.Notation()
+		parts[i] = m.Notation()
 	}
-	return result
-}
 
-// MovesToNotationString converts a slice of moves to a single space-separated notation string.
-func MovesToNotationString(moves []Move) string {
-	notations := MovesToNotation(moves)
-	result := ""
-	for i, n := range notations {
-		if i > 0 {
-			result += " "
-		}
-		result += n
-	}
-	return result
+	return strings.Join(parts, " ")
 }

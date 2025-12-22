@@ -8,12 +8,13 @@ A Go library for interacting with GoCube smart Rubik's cubes via Bluetooth Low E
 
 ## Features
 
+- **Clean API**: Simple, callback-based interface for cube events
 - **Device Discovery**: Scan for and connect to GoCube devices via BLE
-- **Real-time Move Tracking**: Capture every move with millisecond timestamps
+- **Real-time Move Tracking**: Capture every move with timestamps
 - **Cube State Simulation**: Track the virtual cube state as moves are applied
 - **Phase Detection**: Automatically detect solving phases (cross, F2L, OLL, PLL)
-- **Orientation Tracking**: Monitor cube orientation via quaternion data
-- **Analysis Algorithms**: Analyze solve performance with detailed metrics
+- **Standalone Simulation**: Use the cube model without BLE for testing/visualization
+- **Predefined Moves**: Convenient constants like `gocube.R`, `gocube.UPrime`, `gocube.F2`
 
 ## Installation
 
@@ -37,7 +38,7 @@ go install github.com/SeamusWaldron/gocube_ble_library/cmd/gocube@latest
 
 ## Quick Start
 
-### Using as a Library
+### Connect to a GoCube
 
 ```go
 package main
@@ -45,56 +46,74 @@ package main
 import (
     "context"
     "fmt"
-    "time"
 
     "github.com/SeamusWaldron/gocube_ble_library"
 )
 
 func main() {
-    // Create a new BLE client
-    client, err := gocube.NewClient()
-    if err != nil {
-        panic(err)
-    }
-    defer client.Disconnect()
-
-    // Scan for GoCube devices
     ctx := context.Background()
-    results, err := client.Scan(ctx, 5*time.Second)
+
+    // Scan and connect to the first GoCube found
+    cube, err := gocube.ConnectFirst(ctx)
     if err != nil {
         panic(err)
     }
+    defer cube.Close()
 
-    if len(results) == 0 {
-        fmt.Println("No GoCube found")
-        return
-    }
+    fmt.Printf("Connected to: %s\n", cube.DeviceName())
 
-    // Connect to the first device found
-    if err := client.Connect(ctx, results[0].UUID); err != nil {
-        panic(err)
-    }
-
-    // Create a cube state tracker
-    tracker := gocube.NewTracker()
-    tracker.SetPhaseCallback(func(phase gocube.DetectedPhase, key string) {
-        fmt.Printf("Phase completed: %s\n", key)
+    // React to moves
+    cube.OnMove(func(m gocube.Move) {
+        fmt.Printf("Move: %s\n", m.Notation())
     })
 
-    // Set up message callback for moves
-    client.SetMessageCallback(func(msg *gocube.Message) {
-        if msg.Type == gocube.MsgTypeRotation {
-            rotations, _ := gocube.DecodeRotation(msg.Payload)
-            moves := gocube.RotationsToMoves(rotations, 0)
-            for _, move := range moves {
-                fmt.Printf("Move: %s\n", move.Notation())
-                tracker.ApplyMove(move)
-            }
-        }
+    // React to phase changes
+    cube.OnPhaseChange(func(p gocube.Phase) {
+        fmt.Printf("Phase completed: %s\n", p.String())
     })
 
-    // Keep running...
+    // React to solved state
+    cube.OnSolved(func() {
+        fmt.Println("Cube solved!")
+    })
+
+    // Keep running until Ctrl+C
     select {}
+}
+```
+
+### Standalone Cube Simulation
+
+```go
+package main
+
+import (
+    "fmt"
+
+    "github.com/SeamusWaldron/gocube_ble_library"
+)
+
+func main() {
+    // Create a solved cube (no BLE needed)
+    cube := gocube.NewCube()
+
+    // Apply moves using predefined constants
+    cube.Apply(gocube.R, gocube.U, gocube.RPrime, gocube.UPrime)
+
+    // Or parse from notation
+    cube.ApplyNotation("F B2 L' D")
+
+    // Check state
+    fmt.Printf("Solved: %v\n", cube.IsSolved())
+    fmt.Printf("Phase: %s\n", cube.Phase().String())
+
+    // Get detailed progress
+    progress := cube.GetProgress()
+    fmt.Printf("White Cross: %v\n", progress.WhiteCross)
+    fmt.Printf("First Layer: %v\n", progress.FirstLayer)
+
+    // Visualize
+    fmt.Println(cube.String())
 }
 ```
 
@@ -104,7 +123,7 @@ func main() {
 # Check connection status
 gocube status
 
-# Record a solve
+# Record a solve interactively
 gocube solve record
 
 # Generate analysis report
@@ -114,58 +133,120 @@ gocube report solve --last
 gocube solve list
 ```
 
-## Library API
+## API Reference
 
 ### Core Types
 
+#### Move
+
+Represents a single cube move.
+
 ```go
-// Move represents a single cube move
 type Move struct {
-    Face      Face   // R, L, U, D, F, B
-    Turn      Turn   // TurnCW (1), TurnCCW (-1), Turn180 (2)
-    Timestamp int64  // Milliseconds
+    Face Face      // Which face: R, L, U, D, F, B
+    Turn Turn      // Direction: CW (1), CCW (-1), Double (2)
+    Time time.Time // When the move occurred (optional)
 }
 
-// Cube represents the cube state
-type Cube struct {
-    // 6 faces x 9 facelets
-}
-
-// Tracker wraps Cube with phase detection
-type Tracker struct {
-    // ...
-}
-
-// Client handles BLE communication
-type Client struct {
-    // ...
-}
+// Methods
+func (m Move) Notation() string  // Returns "R", "R'", "R2", etc.
+func (m Move) Inverse() Move     // R -> R', R' -> R, R2 -> R2
 ```
 
-### Key Functions
+#### Predefined Moves
 
 ```go
-// BLE
-func NewClient() (*Client, error)
-func (c *Client) Scan(ctx context.Context, timeout time.Duration) ([]ScanResult, error)
-func (c *Client) Connect(ctx context.Context, uuid string) error
-func (c *Client) SetMessageCallback(cb func(*Message))
+// Right face
+gocube.R       // R  (clockwise)
+gocube.RPrime  // R' (counter-clockwise)
+gocube.R2      // R2 (180 degrees)
 
-// Cube State
-func NewCube() *Cube
-func (c *Cube) ApplyMove(m Move)
-func (c *Cube) IsSolved() bool
-func (c *Cube) DetectPhase() DetectedPhase
+// All faces available: R, L, U, D, F, B
+// Each with: X, XPrime, X2 variants
+```
 
-// Tracking
-func NewTracker() *Tracker
-func (t *Tracker) ApplyMove(m Move)
-func (t *Tracker) SetPhaseCallback(cb func(DetectedPhase, string))
+#### Cube
 
-// Message Decoding
-func DecodeRotation(payload []byte) ([]RotationEvent, error)
-func DecodeBattery(payload []byte) (*BatteryEvent, error)
-func DecodeOrientation(payload []byte) (*OrientationEvent, error)
+Represents a 3x3 Rubik's cube state. Can be used standalone without BLE.
+
+```go
+func NewCube() *Cube                        // Create solved cube
+func (c *Cube) Apply(moves ...Move)         // Apply moves
+func (c *Cube) ApplyNotation(s string) error // Apply from notation string
+func (c *Cube) IsSolved() bool              // Check if solved
+func (c *Cube) Phase() Phase                // Current solving phase
+func (c *Cube) GetProgress() Progress       // Detailed phase progress
+func (c *Cube) Reset()                      // Reset to solved state
+func (c *Cube) Clone() *Cube                // Deep copy
+func (c *Cube) String() string              // ASCII visualization
+```
+
+#### Phase
+
+Represents solving phases in layer-by-layer method.
+
+```go
+const (
+    PhaseScrambled      Phase = iota // Cube is scrambled
+    PhaseWhiteCross                  // White cross complete
+    PhaseFirstLayer                  // First layer complete
+    PhaseSecondLayer                 // Second layer (F2L) complete
+    PhaseYellowCross                 // Yellow cross formed
+    PhaseYellowCorners               // Yellow corners positioned
+    PhaseYellowOriented              // Yellow corners oriented
+    PhaseSolved                      // Cube is solved
+)
+
+func (p Phase) String() string // "scrambled", "white_cross", etc.
+```
+
+#### GoCube (BLE Connection)
+
+Represents a connected GoCube device.
+
+```go
+// Discovery
+func Scan(ctx context.Context, timeout time.Duration) ([]Device, error)
+func Connect(ctx context.Context, device Device, opts ...Option) (*GoCube, error)
+func ConnectFirst(ctx context.Context, opts ...Option) (*GoCube, error)
+
+// Connection
+func (g *GoCube) Close() error
+func (g *GoCube) IsConnected() bool
+func (g *GoCube) DeviceName() string
+
+// Callbacks
+func (g *GoCube) OnMove(cb func(Move))
+func (g *GoCube) OnPhaseChange(cb func(Phase))
+func (g *GoCube) OnOrientationChange(cb func(Orientation))
+func (g *GoCube) OnBattery(cb func(int))
+func (g *GoCube) OnDisconnect(cb func(error))
+func (g *GoCube) OnSolved(cb func())
+
+// State
+func (g *GoCube) Cube() *Cube     // Current cube state
+func (g *GoCube) Phase() Phase    // Current phase
+func (g *GoCube) IsSolved() bool  // Convenience check
+func (g *GoCube) Battery() int    // Battery percentage
+func (g *GoCube) Moves() []Move   // Move history
+```
+
+#### Options
+
+```go
+func WithAutoReconnect(enabled bool) Option  // Auto-reconnect on disconnect
+func WithMoveHistory(enabled bool) Option    // Track move history
+func WithPhaseDetection(enabled bool) Option // Auto phase detection
+```
+
+### Parsing Moves
+
+```go
+// Parse single move
+move, err := gocube.ParseMove("R'")
+
+// Parse sequence
+moves, err := gocube.ParseMoves("R U R' U'")
 ```
 
 ## Solving Phases
@@ -175,14 +256,21 @@ The library detects these standard layer-by-layer solving phases:
 | Phase | Description |
 |-------|-------------|
 | `scrambled` | Cube is scrambled |
-| `inspection` | Pre-solve inspection |
-| `white_cross` | Building the white cross |
-| `white_corners` | Completing first layer corners |
-| `middle_layer` | Completing F2L |
-| `bottom_cross` | Yellow cross (OLL cross) |
-| `bottom_perm` | Positioning last layer (PLL) |
-| `bottom_orient` | Orienting last layer corners |
+| `white_cross` | White cross complete |
+| `first_layer` | First layer (white face + corners) complete |
+| `second_layer` | Middle layer (F2L) complete |
+| `yellow_cross` | Yellow cross formed on bottom |
+| `yellow_corners` | Bottom corners positioned correctly |
+| `yellow_oriented` | Bottom corners oriented (OLL complete) |
 | `solved` | Cube is solved |
+
+## Examples
+
+See the [examples/](examples/) directory for complete working examples:
+
+- **[connect/](examples/connect/)** - Basic device connection
+- **[track-moves/](examples/track-moves/)** - Real-time move tracking with phase detection
+- **[simulate/](examples/simulate/)** - Standalone cube simulation without BLE
 
 ## CLI Features
 
@@ -195,7 +283,6 @@ The included CLI application provides:
   - Phase-by-phase breakdown
   - Pattern detection (n-grams)
   - Inefficiency analysis (cancellations, merges)
-  - Playback export for visualization
 - **Session Replay**: Debug phase detection without the physical cube
 - **SQLite Storage**: Persistent storage for all solve data
 
@@ -204,7 +291,7 @@ The included CLI application provides:
 | Key | Action |
 |-----|--------|
 | `s` | Start new solve |
-| `SPACE` | Start solve timer |
+| `SPACE` | Start solve timer (after scramble) |
 | `1-7` | Manually mark phase |
 | `d` | Toggle debug mode |
 | `e` | End solve |
@@ -225,9 +312,27 @@ Ensure standard orientation: **white on top, green facing you** when starting.
 ## Data Storage
 
 The CLI stores data in `~/.gocube_recorder/`:
-- `gocube.db` - SQLite database
-- `state.json` - Application state
-- `logs/` - Session logs for replay
+- `gocube.db` - SQLite database with all solve data
+- `state.json` - Application state (last device, active solve)
+- `logs/` - Session logs for replay debugging
+
+## Architecture
+
+The library uses a layered architecture:
+
+```
+Public API (gocube package)
+├── Move, Face, Turn      - Core types
+├── Cube                  - Cube simulation (standalone)
+├── Phase, Progress       - Phase detection
+├── GoCube, Device        - BLE device connection
+└── Options               - Configuration
+
+Internal (not for external use)
+├── internal/ble/         - BLE transport layer
+├── internal/protocol/    - GoCube protocol decoding
+└── internal/app/         - CLI-specific code
+```
 
 ## Contributing
 

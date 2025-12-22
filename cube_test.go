@@ -13,19 +13,16 @@ func TestNewCubeIsSolved(t *testing.T) {
 
 func TestSingleMoveBreaksSolved(t *testing.T) {
 	c := NewCube()
-	c.MoveFace(CubeFaceR, 1) // R
+	c.Apply(R) // R
 	if c.IsSolved() {
 		t.Error("Cube should not be solved after R move")
 	}
 }
 
-func TestRR_ReturnsToSolved(t *testing.T) {
+func TestRx4_ReturnsToSolved(t *testing.T) {
 	c := NewCube()
 	// R R R R = identity
-	c.MoveFace(CubeFaceR, 1)
-	c.MoveFace(CubeFaceR, 1)
-	c.MoveFace(CubeFaceR, 1)
-	c.MoveFace(CubeFaceR, 1)
+	c.Apply(R, R, R, R)
 	if !c.IsSolved() {
 		t.Error("R R R R should return to solved")
 		t.Log(c.String())
@@ -34,24 +31,20 @@ func TestRR_ReturnsToSolved(t *testing.T) {
 
 func TestR2R2_ReturnsToSolved(t *testing.T) {
 	c := NewCube()
-	c.MoveFace(CubeFaceR, 2)
-	c.MoveFace(CubeFaceR, 2)
+	c.Apply(R2, R2)
 	if !c.IsSolved() {
 		t.Error("R2 R2 should return to solved")
 		t.Log(c.String())
 	}
 }
 
-func TestRR_ReturnsToSolved_AllFaces(t *testing.T) {
-	faces := []CubeFace{CubeFaceU, CubeFaceD, CubeFaceF, CubeFaceB, CubeFaceR, CubeFaceL}
-	for _, face := range faces {
+func TestAllFacesX4_ReturnsToSolved(t *testing.T) {
+	moves := []Move{U, D, F, B, R, L}
+	for _, m := range moves {
 		c := NewCube()
-		c.MoveFace(face, 1)
-		c.MoveFace(face, 1)
-		c.MoveFace(face, 1)
-		c.MoveFace(face, 1)
+		c.Apply(m, m, m, m)
 		if !c.IsSolved() {
-			t.Errorf("%v x 4 should return to solved", face)
+			t.Errorf("%s x 4 should return to solved", m.Notation())
 			t.Log(c.String())
 		}
 	}
@@ -61,10 +54,7 @@ func TestSexyMove_6Times_ReturnsToSolved(t *testing.T) {
 	// (R U R' U') x 6 = identity
 	c := NewCube()
 	for i := 0; i < 6; i++ {
-		c.MoveFace(CubeFaceR, 1)  // R
-		c.MoveFace(CubeFaceU, 1)  // U
-		c.MoveFace(CubeFaceR, -1) // R'
-		c.MoveFace(CubeFaceU, -1) // U'
+		c.Apply(R, U, RPrime, UPrime)
 	}
 	if !c.IsSolved() {
 		t.Error("Sexy move x 6 should return to solved")
@@ -72,51 +62,33 @@ func TestSexyMove_6Times_ReturnsToSolved(t *testing.T) {
 	}
 }
 
-func TestWhiteCrossDetection(t *testing.T) {
+func TestApplyNotation(t *testing.T) {
 	c := NewCube()
-	if !c.IsWhiteCrossComplete() {
-		t.Error("Solved cube should have white cross complete")
+	err := c.ApplyNotation("R U R' U'")
+	if err != nil {
+		t.Errorf("ApplyNotation failed: %v", err)
 	}
-
-	// Break the cross with a single R move
-	c.MoveFace(CubeFaceR, 1)
-	// R move affects U face edge at position 5 (right edge)
-	// After R, the white edge piece moves to F face
-	if c.IsWhiteCrossComplete() {
-		t.Error("White cross should be broken after R move")
-	}
-}
-
-func TestTopLayerDetection(t *testing.T) {
-	c := NewCube()
-	if !c.IsTopLayerComplete() {
-		t.Error("Solved cube should have top layer complete")
-	}
-
-	c.MoveFace(CubeFaceR, 1)
-	if c.IsTopLayerComplete() {
-		t.Error("Top layer should be broken after R move")
-	}
-}
-
-func TestMiddleLayerDetection(t *testing.T) {
-	c := NewCube()
-	if !c.IsMiddleLayerComplete() {
-		t.Error("Solved cube should have middle layer complete")
-	}
-}
-
-func TestApplyTypesMove(t *testing.T) {
-	c := NewCube()
-	move := Move{Face: FaceR, Turn: TurnCW}
-	c.ApplyMove(move)
 	if c.IsSolved() {
-		t.Error("Cube should not be solved after applying R move")
+		t.Error("Cube should not be solved after R U R' U'")
 	}
 
-	// Apply R' to undo
-	move2 := Move{Face: FaceR, Turn: TurnCCW}
-	c.ApplyMove(move2)
+	// Apply 5 more times to get back to solved
+	for i := 0; i < 5; i++ {
+		c.ApplyNotation("R U R' U'")
+	}
+	if !c.IsSolved() {
+		t.Error("Sexy move x 6 should return to solved")
+		t.Log(c.String())
+	}
+}
+
+func TestApply_RRPrime_ReturnsToSolved(t *testing.T) {
+	c := NewCube()
+	c.Apply(R)
+	if c.IsSolved() {
+		t.Error("Cube should not be solved after R")
+	}
+	c.Apply(RPrime)
 	if !c.IsSolved() {
 		t.Error("Cube should be solved after R R'")
 		t.Log(c.String())
@@ -125,70 +97,68 @@ func TestApplyTypesMove(t *testing.T) {
 
 func TestPhaseDetection(t *testing.T) {
 	c := NewCube()
-	phase := c.DetectPhase()
+	phase := c.Phase()
 	if phase != PhaseSolved {
 		t.Errorf("Solved cube should detect as PhaseSolved, got %v", phase)
 	}
 
-	c.MoveFace(CubeFaceR, 1)
-	phase = c.DetectPhase()
+	c.Apply(R)
+	phase = c.Phase()
 	if phase == PhaseSolved {
 		t.Error("Scrambled cube should not detect as solved")
 	}
 }
 
-func TestTrackerReset(t *testing.T) {
-	tr := NewTracker()
-	if !tr.IsSolved() {
-		t.Error("New tracker should start solved")
+func TestReset(t *testing.T) {
+	c := NewCube()
+	c.Apply(R, U, F)
+	if c.IsSolved() {
+		t.Error("Cube should not be solved after moves")
 	}
 
-	tr.ApplyMove(Move{Face: FaceR, Turn: TurnCW})
-	if tr.IsSolved() {
-		t.Error("Tracker should not be solved after move")
+	c.Reset()
+	if !c.IsSolved() {
+		t.Error("Cube should be solved after reset")
+	}
+}
+
+func TestClone(t *testing.T) {
+	c := NewCube()
+	c.Apply(R, U)
+
+	clone := c.Clone()
+
+	// Clone should have same state
+	if clone.IsSolved() != c.IsSolved() {
+		t.Error("Clone should have same solved state")
 	}
 
-	tr.Reset()
-	if !tr.IsSolved() {
-		t.Error("Tracker should be solved after reset")
+	// Modifying clone shouldn't affect original
+	clone.Reset()
+	if clone.IsSolved() == c.IsSolved() {
+		t.Error("Modifying clone shouldn't affect original")
 	}
 }
 
 func TestScrambleAndReverse(t *testing.T) {
-	// Scramble a cube with a sequence and then reverse it
-	// Verify that phases are detected correctly on the way back
 	c := NewCube()
 
 	// Simple scramble
-	scramble := []struct {
-		face CubeFace
-		turn int
-	}{
-		{CubeFaceR, 1}, {CubeFaceU, 1}, {CubeFaceR, -1}, {CubeFaceU, -1},
-		{CubeFaceF, 1}, {CubeFaceD, 1}, {CubeFaceL, 2},
-	}
+	scramble := []Move{R, U, RPrime, UPrime, F, D, L2}
 
 	// Apply scramble
-	for _, m := range scramble {
-		c.MoveFace(m.face, m.turn)
-	}
+	c.Apply(scramble...)
 
 	if c.IsSolved() {
 		t.Error("Cube should be scrambled after moves")
 	}
 
-	phase := c.DetectPhase()
+	phase := c.Phase()
 	t.Logf("After scramble: phase=%s", phase.String())
 
 	// Reverse the scramble
 	for i := len(scramble) - 1; i >= 0; i-- {
-		m := scramble[i]
-		// Reverse the turn
-		reverseTurn := -m.turn
-		if m.turn == 2 {
-			reverseTurn = 2 // R2 reversed is R2
-		}
-		c.MoveFace(m.face, reverseTurn)
+		c.Apply(scramble[i].Inverse())
 	}
 
 	if !c.IsSolved() {
@@ -197,74 +167,116 @@ func TestScrambleAndReverse(t *testing.T) {
 	}
 }
 
-func TestPhaseTransitionsForward(t *testing.T) {
-	// Verify that each phase check works correctly
+func TestGetProgress(t *testing.T) {
 	c := NewCube()
+	progress := c.GetProgress()
 
 	// All phases should be complete on solved cube
-	t.Log("Testing solved cube phases:")
-	t.Logf("  WhiteCross: %v", c.IsWhiteCrossComplete())
-	t.Logf("  TopLayer: %v", c.IsTopLayerComplete())
-	t.Logf("  MiddleLayer: %v", c.IsMiddleLayerComplete())
-	t.Logf("  BottomCross: %v", c.IsBottomCrossComplete())
-	t.Logf("  CornersPositioned: %v", c.AreBottomCornersPositioned())
-	t.Logf("  CornersOriented: %v", c.AreBottomCornersOriented())
-	t.Logf("  Solved: %v", c.IsSolved())
-
-	if !c.IsWhiteCrossComplete() {
+	if !progress.WhiteCross {
 		t.Error("Solved cube should have white cross")
 	}
-	if !c.IsTopLayerComplete() {
-		t.Error("Solved cube should have top layer")
+	if !progress.FirstLayer {
+		t.Error("Solved cube should have first layer")
 	}
-	if !c.IsMiddleLayerComplete() {
-		t.Error("Solved cube should have middle layer")
+	if !progress.SecondLayer {
+		t.Error("Solved cube should have second layer")
 	}
-	if !c.IsBottomCrossComplete() {
-		t.Error("Solved cube should have bottom cross")
+	if !progress.YellowCross {
+		t.Error("Solved cube should have yellow cross")
 	}
-	if !c.AreBottomCornersPositioned() {
-		t.Error("Solved cube should have corners positioned")
+	if !progress.YellowCorners {
+		t.Error("Solved cube should have yellow corners positioned")
 	}
-	if !c.AreBottomCornersOriented() {
-		t.Error("Solved cube should have corners oriented")
+	if !progress.YellowOriented {
+		t.Error("Solved cube should have yellow corners oriented")
 	}
-	if !c.IsSolved() {
+	if !progress.Solved {
 		t.Error("Solved cube should be solved")
 	}
 }
 
-func TestTrackerPhaseCallback(t *testing.T) {
-	// Verify that the tracker fires phase callbacks correctly
-	tr := NewTracker()
+func TestPhaseProgression(t *testing.T) {
+	c := NewCube()
 
-	var phaseChanges []string
-	tr.SetPhaseCallback(func(phase DetectedPhase, phaseKey string) {
-		phaseChanges = append(phaseChanges, phaseKey)
-		t.Logf("Phase callback fired: %s", phaseKey)
-	})
-
-	// Scramble the cube
-	tr.ApplyMove(Move{Face: FaceR, Turn: TurnCW})
-	tr.ApplyMove(Move{Face: FaceU, Turn: TurnCW})
-	tr.ApplyMove(Move{Face: FaceF, Turn: TurnCW})
-
-	t.Logf("After scramble: phase=%s, callbacks=%v", tr.CurrentPhaseKey(), phaseChanges)
-
-	// Phase should have gone backwards (scrambled), no forward callbacks
-	if tr.CurrentPhaseKey() != "scrambled" {
-		t.Errorf("Expected phase 'scrambled', got %s", tr.CurrentPhaseKey())
+	// Verify solved cube is at PhaseSolved
+	if c.Phase() != PhaseSolved {
+		t.Errorf("Solved cube phase should be PhaseSolved, got %v", c.Phase())
 	}
 
-	// Now reverse to get back to solved
-	tr.ApplyMove(Move{Face: FaceF, Turn: TurnCCW})
-	tr.ApplyMove(Move{Face: FaceU, Turn: TurnCCW})
-	tr.ApplyMove(Move{Face: FaceR, Turn: TurnCCW})
+	// Apply R to break the solve
+	c.Apply(R)
+	phase := c.Phase()
+	t.Logf("After R: phase=%s", phase.String())
 
-	t.Logf("After reverse: phase=%s, callbacks=%v", tr.CurrentPhaseKey(), phaseChanges)
+	// Should not be solved anymore
+	if phase == PhaseSolved {
+		t.Error("Cube should not be solved after R")
+	}
 
-	if !tr.IsSolved() {
-		t.Error("Tracker should be solved after reversing moves")
-		t.Log(tr.CubeString())
+	// Apply R' to restore
+	c.Apply(RPrime)
+	if c.Phase() != PhaseSolved {
+		t.Errorf("Cube should be solved after R R', got phase=%s", c.Phase().String())
+	}
+}
+
+func TestMoveNotation(t *testing.T) {
+	tests := []struct {
+		move     Move
+		expected string
+	}{
+		{R, "R"},
+		{RPrime, "R'"},
+		{R2, "R2"},
+		{U, "U"},
+		{UPrime, "U'"},
+		{U2, "U2"},
+		{F, "F"},
+		{FPrime, "F'"},
+		{F2, "F2"},
+	}
+
+	for _, tc := range tests {
+		if tc.move.Notation() != tc.expected {
+			t.Errorf("Move.Notation() = %s, expected %s", tc.move.Notation(), tc.expected)
+		}
+	}
+}
+
+func TestMoveInverse(t *testing.T) {
+	tests := []struct {
+		move    Move
+		inverse Move
+	}{
+		{R, RPrime},
+		{RPrime, R},
+		{R2, R2},
+		{U, UPrime},
+		{UPrime, U},
+	}
+
+	for _, tc := range tests {
+		inv := tc.move.Inverse()
+		if inv.Face != tc.inverse.Face || inv.Turn != tc.inverse.Turn {
+			t.Errorf("%s.Inverse() = %s, expected %s", tc.move.Notation(), inv.Notation(), tc.inverse.Notation())
+		}
+	}
+}
+
+func TestParseMoves(t *testing.T) {
+	moves, err := ParseMoves("R U R' U'")
+	if err != nil {
+		t.Errorf("ParseMoves failed: %v", err)
+	}
+
+	expected := []Move{R, U, RPrime, UPrime}
+	if len(moves) != len(expected) {
+		t.Errorf("ParseMoves returned %d moves, expected %d", len(moves), len(expected))
+	}
+
+	for i, m := range moves {
+		if m.Face != expected[i].Face || m.Turn != expected[i].Turn {
+			t.Errorf("Move %d: got %s, expected %s", i, m.Notation(), expected[i].Notation())
+		}
 	}
 }

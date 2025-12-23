@@ -338,6 +338,10 @@ Internal (not for external use)
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
+## Acknowledgements
+
+The BLE protocol implementation was based on the reverse engineering work documented at [oddpetersson/gocube-protocol](https://github.com/oddpetersson/gocube-protocol).
+
 ## License
 
 MIT - see [LICENSE](LICENSE) for details.

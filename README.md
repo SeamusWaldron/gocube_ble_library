@@ -6,6 +6,12 @@ A Go library for interacting with GoCube smart Rubik's cubes via Bluetooth Low E
 [![CI](https://github.com/SeamusWaldron/gocube_ble_library/actions/workflows/ci.yml/badge.svg)](https://github.com/SeamusWaldron/gocube_ble_library/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
+<p align="center">
+  <img src="docs/images/visualiser.png" alt="GoCube Solve Visualiser" width="800">
+  <br>
+  <em>Interactive 3D solve visualiser with real-time playback and analysis</em>
+</p>
+
 ## Features
 
 - **Clean API**: Simple, callback-based interface for cube events
